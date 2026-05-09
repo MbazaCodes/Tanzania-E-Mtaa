@@ -13,10 +13,11 @@
  */
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { 
+import {
   Loader2, CheckCircle, ArrowLeft, ArrowRight, Eye, FileCheck,
   User, MapPin, Phone, Mail, Calendar, CreditCard, Home,
-  AlertCircle, Search, FileText, Building, Users, Upload
+  AlertCircle, Search, FileText, Building, Users, Upload,
+  Plus, Trash2, Pencil,
 } from 'lucide-react';
 import { FormProps, labels } from './types';
 import { ProgressFill } from '../ui/ProgressFill';
@@ -323,6 +324,19 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
   const [applicantIdPhoto, setApplicantIdPhoto] = useState<string | null>(null);
   const [subjectPhoto, setSubjectPhoto] = useState<string | null>(null);
   const [supportingDocPhoto, setSupportingDocPhoto] = useState<string | null>(null);
+
+  // Custom fields — user-added key/value pairs
+  const [customFields, setCustomFields] = useState<{ id: string; label: string; value: string }[]>([]);
+
+  const addCustomField = () => {
+    setCustomFields(prev => [...prev, { id: crypto.randomUUID(), label: '', value: '' }]);
+  };
+  const updateCustomField = (id: string, key: 'label' | 'value', val: string) => {
+    setCustomFields(prev => prev.map(f => f.id === id ? { ...f, [key]: val } : f));
+  };
+  const removeCustomField = (id: string) => {
+    setCustomFields(prev => prev.filter(f => f.id !== id));
+  };
   
   // Mkazi lookup state
   const [mkaziNumber, setMkaziNumber] = useState('');
@@ -561,6 +575,7 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
       applicant_id_photo: applicantIdPhoto,
       subject_photo: subjectPhoto,
       supporting_doc_photo: supportingDocPhoto,
+      custom_fields: customFields.filter(f => f.label.trim()),
     };
     await Promise.resolve(onSubmit(submitData, [], 'self'));
   };
@@ -757,6 +772,26 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
               )}
             </div>
           </div>
+
+          {/* Custom Fields in review */}
+          {customFields.filter(f => f.label.trim()).length > 0 && (
+            <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+              <div className="bg-emerald-50 px-4 py-2 border-b border-emerald-100">
+                <h4 className="font-bold text-emerald-800 flex items-center gap-2">
+                  <Pencil className="h-4 w-4" />
+                  {lang === 'sw' ? 'Sehemu za Ziada' : 'Custom Fields'}
+                </h4>
+              </div>
+              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {customFields.filter(f => f.label.trim()).map(f => (
+                  <div key={f.id}>
+                    <span className="text-xs text-stone-500">{f.label}</span>
+                    <p className="font-medium">{f.value || '—'}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Fee Summary */}
           <div className="bg-linear-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4">
@@ -1052,26 +1087,31 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
             </p>
           </div>
 
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center gap-2 mb-2">
+            <Pencil className="h-4 w-4 shrink-0" />
+            {lang === 'sw'
+              ? 'Taarifa zilizojazwa kiotomatiki. Unaweza kuzihariri kama kuna makosa.'
+              : 'Auto-filled from your certificate. Edit any field that needs correction.'}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>
                 {lang === 'sw' ? 'Jina Kamili' : 'Full Name'}
               </label>
-              <input 
-                type="text" 
-                {...register('full_name')} 
-                className={`${inputClass} bg-stone-50`}
-                readOnly
+              <input
+                type="text"
+                {...register('full_name')}
+                className={inputClass}
               />
             </div>
 
             <div>
               <label className={labelClass}>NIDA</label>
-              <input 
-                type="text" 
-                {...register('nida_number')} 
-                className={`${inputClass} bg-stone-50`}
-                readOnly
+              <input
+                type="text"
+                {...register('nida_number')}
+                className={inputClass}
               />
             </div>
 
@@ -1079,21 +1119,19 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
               <label className={labelClass}>
                 {lang === 'sw' ? 'Simu' : 'Phone'}
               </label>
-              <input 
-                type="text" 
-                {...register('phone')} 
-                className={`${inputClass} bg-stone-50`}
-                readOnly
+              <input
+                type="text"
+                {...register('phone')}
+                className={inputClass}
               />
             </div>
 
             <div>
               <label className={labelClass}>Email</label>
-              <input 
-                type="email" 
-                {...register('email')} 
-                className={`${inputClass} bg-stone-50`}
-                readOnly
+              <input
+                type="email"
+                {...register('email')}
+                className={inputClass}
               />
             </div>
           </div>
@@ -1103,11 +1141,10 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
               <label className={labelClass}>
                 {lang === 'sw' ? 'Mkoa' : 'Region'}
               </label>
-              <input 
-                type="text" 
-                {...register('region')} 
-                className={`${inputClass} bg-stone-50`}
-                readOnly
+              <input
+                type="text"
+                {...register('region')}
+                className={inputClass}
               />
             </div>
 
@@ -1115,11 +1152,10 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
               <label className={labelClass}>
                 {lang === 'sw' ? 'Wilaya' : 'District'}
               </label>
-              <input 
-                type="text" 
-                {...register('district')} 
-                className={`${inputClass} bg-stone-50`}
-                readOnly
+              <input
+                type="text"
+                {...register('district')}
+                className={inputClass}
               />
             </div>
 
@@ -1248,12 +1284,71 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
             <label className={labelClass}>
               {lang === 'sw' ? 'Maelezo ya Ziada (Hiari)' : 'Additional Notes (Optional)'}
             </label>
-            <textarea 
-              {...register('additional_notes')} 
+            <textarea
+              {...register('additional_notes')}
               className={inputClass}
               rows={3}
               placeholder={lang === 'sw' ? 'Maelezo yoyote ya ziada kuhusu ombi lako' : 'Any additional information about your request'}
             />
+          </div>
+
+          {/* ── Custom Fields ─────────────────────────────────────── */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className={labelClass + ' mb-0'}>
+                <Pencil className="inline h-4 w-4 mr-1.5 text-emerald-600" />
+                {lang === 'sw' ? 'Sehemu za Ziada (Maalum)' : 'Extra / Custom Fields'}
+              </label>
+              <button
+                type="button"
+                onClick={addCustomField}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {lang === 'sw' ? 'Ongeza Sehemu' : 'Add Field'}
+              </button>
+            </div>
+
+            {customFields.length === 0 && (
+              <p className="text-xs text-stone-400 italic">
+                {lang === 'sw'
+                  ? 'Bonyeza "Ongeza Sehemu" kuongeza taarifa za ziada zinazotakiwa kwenye barua yako.'
+                  : 'Click "Add Field" to include any extra information required in your letter.'}
+              </p>
+            )}
+
+            {customFields.map((field, idx) => (
+              <div key={field.id} className="flex gap-2 items-start">
+                <div className="flex-1 grid grid-cols-2 gap-2">
+                  <div>
+                    <input
+                      type="text"
+                      value={field.label}
+                      onChange={(e) => updateCustomField(field.id, 'label', e.target.value)}
+                      className={inputClass + ' text-sm'}
+                      placeholder={lang === 'sw' ? `Kichwa (${idx + 1})` : `Label (${idx + 1})`}
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={field.value}
+                      onChange={(e) => updateCustomField(field.id, 'value', e.target.value)}
+                      className={inputClass + ' text-sm'}
+                      placeholder={lang === 'sw' ? 'Thamani' : 'Value'}
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeCustomField(field.id)}
+                  className="mt-1 p-2 rounded-lg text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                  title={lang === 'sw' ? 'Futa sehemu hii' : 'Remove this field'}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}
