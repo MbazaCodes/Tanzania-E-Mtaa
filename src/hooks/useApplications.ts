@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase, Application, UserProfile } from '@/lib/supabase';
 import { HARDCODED_SERVICES } from '@/constants/services';
 
@@ -50,86 +51,72 @@ const getLocalDrafts = (user: UserProfile) => {
 };
 
 export function useApplications(user: UserProfile | null) {
-  const [applications, setApplications] = useState<Application[]>([]);
+  const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchApplications = useCallback(async () => {
-    if (!user || !user.id) {
-      setApplications([]);
-      setDrafts([]);
-      return;
-    }
-    
-    setLoading(true);
-    setError(null);
+  // Fetch drafts from localStorage (sync, no network needed)
+  useEffect(() => {
+    if (user) setDrafts(getLocalDrafts(user));
+    else setDrafts([]);
+  }, [user]);
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const isConfigured = supabaseUrl && !supabaseUrl.includes('YOUR_SUPABASE_URL') && !supabaseUrl.includes('bqxevbmjqvogebmlbidx');
+  const queryKey = ['applications', user?.id] as const;
 
-    if (!isConfigured || (user.id && user.id.startsWith('demo-'))) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const demoApps = JSON.parse(localStorage.getItem('demo_applications') || '[]');
-      const userApps = demoApps
-        .filter((app: any) => app.user_id === user.id)
-        .map((app: any) => ({
-          ...app,
-          services: getServiceById(app.service_id) || { name: app.service_name || 'Service', fee: 0 },
-          users: user
-        }));
-      setApplications(userApps);
+  const { data: applications = [], isLoading: loading, error: queryError, refetch } = useQuery({
+    queryKey,
+    enabled: Boolean(user?.id),
+    staleTime: 1000 * 60 * 2,   // 2 min — data is fresh, skip refetch
+    gcTime: 1000 * 60 * 10,     // 10 min in cache
+    queryFn: async () => {
+      if (!user || !user.id) return [];
 
-      setDrafts(getLocalDrafts(user));
-      setLoading(false);
-      return;
-    }
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const isConfigured = supabaseUrl && !supabaseUrl.includes('YOUR_SUPABASE_URL') && !supabaseUrl.includes('bqxevbmjqvogebmlbidx');
 
-    console.log('Fetching applications for user:', user.id);
-    
-    const { data, error: fetchError } = await supabase
-      .from('applications')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-    
-    if (fetchError) {
-      console.error('Error fetching applications:', fetchError);
-      setError(fetchError.message);
-    }
-    
-    if (data) {
-      const appsWithServices = data.map((app: any) => ({
+      if (!isConfigured || user.id.startsWith('demo-')) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const demoApps = JSON.parse(localStorage.getItem('demo_applications') || '[]');
+        return demoApps
+          .filter((app: any) => app.user_id === user.id)
+          .map((app: any) => ({
+            ...app,
+            services: getServiceById(app.service_id) || { name: app.service_name || 'Service', fee: 0 },
+            users: user,
+          }));
+      }
+
+      const { data, error: fetchError } = await supabase
+        .from('applications')
+        .select('id, user_id, service_id, service_name, application_number, form_data, status, region, district, ward, street, created_at, updated_at, paid_at, payment_data')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (fetchError) throw fetchError;
+
+      return (data ?? []).map((app: any) => ({
         ...app,
         services: resolveService(app.service_id, app.service_name, app.form_data),
-        users: user
-      }));
-      setApplications(appsWithServices);
-    }
-
-    setDrafts(getLocalDrafts(user));
-    setLoading(false);
-  }, [user?.id]);
-
-  useEffect(() => {
-    fetchApplications();
-  }, [fetchApplications]);
+        users: user,
+      })) as Application[];
+    },
+  });
 
   const refreshApplications = useCallback(() => {
-    fetchApplications();
-  }, [fetchApplications]);
+    void queryClient.invalidateQueries({ queryKey: ['applications', user?.id] });
+    if (user) setDrafts(getLocalDrafts(user));
+  }, [queryClient, user]);
 
   const setApplicationsDirectly = useCallback((apps: Application[]) => {
-    setApplications(apps);
-  }, []);
+    queryClient.setQueryData(queryKey, apps);
+  }, [queryClient, queryKey]);
 
-  return { 
-    applications, 
-    drafts, 
-    loading, 
-    error,
-    fetchApplications, 
+  return {
+    applications,
+    drafts,
+    loading,
+    error: queryError ? String((queryError as Error).message) : null,
+    fetchApplications: refetch,
     refreshApplications,
-    setApplications: setApplicationsDirectly 
+    setApplications: setApplicationsDirectly,
   };
 }

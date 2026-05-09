@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, Filter, ArrowUpDown, Calendar, X, Eye, 
-  FileText, Clock, CreditCard, RefreshCw, Receipt, CheckCircle2 
+  FileText, Clock, CreditCard, RefreshCw, Receipt, CheckCircle2,
+  PlusCircle,
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuth } from '@/context/AuthContext';
@@ -19,9 +20,10 @@ interface ApplicationsProps {
   onPay: (app: Application) => void;
   onRefresh?: () => void;
   onResumeDraft?: (draft: any) => void;
+  onApplyAgain?: (app: Application) => void;
 }
 
-export function Applications({ applications, drafts = [], onPay, onRefresh, onResumeDraft }: ApplicationsProps) {
+export function Applications({ applications, drafts = [], onPay, onRefresh, onResumeDraft, onApplyAgain }: ApplicationsProps) {
   const { lang, t, currency } = useLanguage();
   const { showToast } = useToast();
   const { user } = useAuth();
@@ -422,15 +424,73 @@ export function Applications({ applications, drafts = [], onPay, onRefresh, onRe
           {displayApplications.map(app => {
             const paymentAmount = getPaymentAmount(app);
             const needsPayment = (app.status === 'submitted' || app.status === 'pending_payment') && paymentAmount > 0;
+            const isIssued = app.status === 'issued' || app.status === 'paid';
 
             return (
-              <div 
-                key={app.id} 
-                className="p-4 space-y-4 cursor-pointer hover:bg-stone-50"
+              <div
+                key={app.id}
+                className="p-4 active:bg-stone-50"
                 onClick={() => setSelectedApp(app)}
               >
-                {/* ... Mobile card content (similar logic as desktop) ... */}
-                {/* Omitted for brevity in this response - full version includes complete mobile UI */}
+                {/* Service name + status row */}
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <p className="font-semibold text-stone-900 text-sm leading-snug flex-1">
+                    {getServiceName(app)}
+                  </p>
+                  <StatusBadge status={app.status} lang={lang} />
+                </div>
+
+                {/* App number + date */}
+                <div className="flex items-center gap-3 text-xs text-stone-500 mb-3">
+                  <span className="font-mono font-semibold text-emerald-700">{app.application_number}</span>
+                  <span>•</span>
+                  <span>{new Date(app.created_at).toLocaleDateString()}</span>
+                </div>
+
+                {/* Progress bar */}
+                <ApplicationProgressBar status={app.status} lang={lang} compact />
+
+                {/* Action buttons */}
+                <div className="flex flex-wrap gap-2 mt-3" onClick={e => e.stopPropagation()}>
+                  {needsPayment && (
+                    <button
+                      onClick={() => onPay(app)}
+                      className="flex-1 bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs font-bold hover:bg-emerald-700 active:scale-95 transition-all"
+                    >
+                      <CreditCard className="inline h-3 w-3 mr-1" />
+                      {lang === 'sw' ? 'Lipa' : 'Pay'} ({formatCurrency(paymentAmount, currency)})
+                    </button>
+                  )}
+                  {isIssued && (
+                    <>
+                      <button
+                        onClick={() => void handleDownload(app, 'receipt')}
+                        disabled={downloadingKey === `receipt-${app.id}`}
+                        className="flex-1 bg-amber-100 text-amber-800 px-3 py-2 rounded-xl text-xs font-bold hover:bg-amber-200 disabled:opacity-50 active:scale-95 transition-all"
+                      >
+                        <Receipt className="inline h-3 w-3 mr-1" />
+                        {lang === 'sw' ? 'Risiti' : 'Receipt'}
+                      </button>
+                      <button
+                        onClick={() => void handleDownload(app, 'certificate')}
+                        disabled={downloadingKey === `certificate-${app.id}`}
+                        className="flex-1 bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs font-bold hover:bg-emerald-700 disabled:opacity-50 active:scale-95 transition-all"
+                      >
+                        <FileText className="inline h-3 w-3 mr-1" />
+                        {lang === 'sw' ? 'Pakua' : 'Download'}
+                      </button>
+                    </>
+                  )}
+                  {(isIssued || app.status === 'rejected') && onApplyAgain && (
+                    <button
+                      onClick={() => onApplyAgain(app)}
+                      className="flex-1 border border-emerald-300 text-emerald-700 px-3 py-2 rounded-xl text-xs font-bold hover:bg-emerald-50 active:scale-95 transition-all"
+                    >
+                      <PlusCircle className="inline h-3 w-3 mr-1" />
+                      {lang === 'sw' ? 'Ombi Jipya' : 'Apply Again'}
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -548,14 +608,28 @@ export function Applications({ applications, drafts = [], onPay, onRefresh, onRe
               </div>
 
               <div className="px-6 py-4 border-t border-stone-100 bg-stone-50 flex flex-col sm:flex-row justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPreviewApp(selectedApp)}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-stone-200 text-stone-700 font-semibold hover:bg-stone-100"
-                >
-                  <Eye size={18} />
-                  {lang === 'sw' ? 'Hakiki' : 'Preview'}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewApp(selectedApp)}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-stone-200 text-stone-700 font-semibold hover:bg-stone-100"
+                  >
+                    <Eye size={18} />
+                    {lang === 'sw' ? 'Hakiki' : 'Preview'}
+                  </button>
+
+                  {/* Apply Again — available once issued, paid, or rejected */}
+                  {(selectedApp.status === 'issued' || selectedApp.status === 'paid' || selectedApp.status === 'rejected') && onApplyAgain && (
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedApp(null); onApplyAgain(selectedApp); }}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold hover:bg-emerald-100"
+                    >
+                      <PlusCircle size={18} />
+                      {lang === 'sw' ? 'Ombi Jipya' : 'Apply Again'}
+                    </button>
+                  )}
+                </div>
 
                 <div className="flex flex-col sm:flex-row gap-2">
                   {(selectedApp.status === 'submitted' || selectedApp.status === 'pending_payment') && getPaymentAmount(selectedApp) > 0 && (

@@ -247,7 +247,7 @@ export default function App() {
           services: variables.service,
           users: user || undefined,
         },
-        ...applications.filter((app) => app.id !== newApplication.id),
+        ...applications.filter((app: Application) => app.id !== newApplication.id),
       ]);
 
       showToast(
@@ -317,7 +317,7 @@ export default function App() {
   const handlePaymentSuccess = async (paymentData: any) => {
     if (!payingApplication) return;
 
-    setApplications(applications.map((application) => (
+    setApplications(applications.map((application: Application) => (
       application.id === payingApplication.id
         ? {
             ...application,
@@ -514,6 +514,12 @@ export default function App() {
                   onPay={setPayingApplication}
                   onRefresh={refreshApplications}
                   onResumeDraft={handleResumeDraft}
+                  onApplyAgain={(app) => {
+                    const svc = HARDCODED_SERVICES.find(
+                      s => s.id === app.service_id || s.name === app.service_name || (s as any).name_en === app.service_name
+                    );
+                    if (svc) { setSelectedService(svc); setSelectedDraftId(undefined); setView('apply'); }
+                  }}
                 />
               )}
               {view === 'profile' && <Profile />}

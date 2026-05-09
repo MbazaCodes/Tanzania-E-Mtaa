@@ -11,7 +11,7 @@
  * - Progress tracking
  * - Review step before submission
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   Loader2, CheckCircle, ArrowLeft, ArrowRight, Eye, FileCheck,
@@ -322,8 +322,33 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
 
   // Photo & document upload state
   const [applicantIdPhoto, setApplicantIdPhoto] = useState<string | null>(null);
+  const [selfiePhoto, setSelfiePhoto] = useState<string | null>(null);
   const [subjectPhoto, setSubjectPhoto] = useState<string | null>(null);
   const [supportingDocPhoto, setSupportingDocPhoto] = useState<string | null>(null);
+
+  // Auto-fetch and fill mkazi cert when applicant type changes to minor/third_party
+  useEffect(() => {
+    if (applicantType === 'self' || !userProfile?.id) return;
+    // Only auto-fill if field is still empty
+    if (mkaziNumber.trim()) return;
+
+    supabase
+      .from('applications')
+      .select('application_number, status, service_name')
+      .eq('user_id', userProfile.id)
+      .in('status', ['approved', 'issued', 'paid', 'pending_payment'])
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (!data) return;
+        const cert = data.find(app =>
+          String(app.service_name || '').toLowerCase().includes('mkazi')
+        );
+        if (cert?.application_number) {
+          setMkaziNumber(cert.application_number);
+        }
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicantType, userProfile?.id]);
 
   // Custom fields — user-added key/value pairs
   const [customFields, setCustomFields] = useState<{ id: string; label: string; value: string }[]>([]);
@@ -573,6 +598,7 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
       ...(formData ?? getValues()),
       applicant_type: applicantType,
       applicant_id_photo: applicantIdPhoto,
+      selfie_photo: selfiePhoto,
       subject_photo: subjectPhoto,
       supporting_doc_photo: supportingDocPhoto,
       custom_fields: customFields.filter(f => f.label.trim()),
@@ -1379,6 +1405,17 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
               : 'Take a photo of your NIDA card, passport, or driving license. Optional but speeds up verification.'}
             value={applicantIdPhoto}
             onChange={setApplicantIdPhoto}
+            lang={lang}
+          />
+
+          {/* Selfie / Passport size photo */}
+          <PhotoCapture
+            label={lang === 'sw' ? 'Picha ya Pasi / Selfie (Ukubwa wa Pasi)' : 'Passport Photo / Selfie'}
+            description={lang === 'sw'
+              ? 'Piga picha yako ya ukubwa wa pasi (selfie). Picha inaonekana kwenye barua yako. Uso uwe wazi na taa nzuri.'
+              : 'Take a passport-size selfie. Your face should be clear with good lighting. This appears on your letter.'}
+            value={selfiePhoto}
+            onChange={setSelfiePhoto}
             lang={lang}
           />
 
