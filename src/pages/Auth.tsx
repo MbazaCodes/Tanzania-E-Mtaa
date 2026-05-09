@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Mail, Lock, Eye, EyeOff, Loader2, ArrowRight, ArrowLeft,
-  CheckCircle2, AlertCircle, Smartphone, KeyRound,
+  CheckCircle2, AlertCircle, Smartphone, KeyRound, Copy, Check,
 } from 'lucide-react';
 import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
@@ -48,6 +48,33 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
+
+  // Dev-mode OTP preview popup
+  const [otpPopupVisible, setOtpPopupVisible] = useState(false);
+  const [otpPreview, setOtpPreview] = useState<string | null>(null);
+  const [otpCopied, setOtpCopied] = useState(false);
+  const [otpCountdown, setOtpCountdown] = useState(9);
+  const otpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const dismissOtpPreview = useCallback(() => {
+    setOtpPopupVisible(false);
+    setOtpPreview(null);
+    setOtpCopied(false);
+    setOtpCountdown(9);
+    if (otpTimerRef.current) clearInterval(otpTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (!otpPopupVisible) return;
+    setOtpCountdown(9);
+    otpTimerRef.current = setInterval(() => {
+      setOtpCountdown(prev => {
+        if (prev <= 1) { dismissOtpPreview(); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => { if (otpTimerRef.current) clearInterval(otpTimerRef.current); };
+  }, [otpPopupVisible, dismissOtpPreview]);
 
   // Login Form
   const [email, setEmail] = useState('');
@@ -210,8 +237,30 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
           showToast(lang === 'sw' ? 'Weka barua pepe' : 'Enter your email', 'error');
           return;
         }
-        const { error } = await supabase.auth.signInWithOtp({ email: normalizedOtpEmail });
-        if (error) throw error;
+
+        // ── DEV PREVIEW: use admin generateLink so we can surface the plain-text
+        // email_otp in the popup. Falls back to signInWithOtp if service key absent.
+        // Remove the generateLink branch once Twilio / real SMS is integrated.
+        const serviceKey = (import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ?? '') as string;
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+        if (serviceKey && supabaseUrl) {
+          const res = await fetch(`${supabaseUrl}/auth/v1/admin/generate_link`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: serviceKey,
+              Authorization: `Bearer ${serviceKey}`,
+            },
+            body: JSON.stringify({ type: 'magiclink', email: normalizedOtpEmail }),
+          });
+          const json = await res.json() as { properties?: { email_otp?: string }; error?: string };
+          if (!res.ok) throw new Error(json.error ?? 'Failed to generate OTP');
+          const code = json.properties?.email_otp;
+          if (code) setOtpPreview(code);
+        } else {
+          const { error } = await supabase.auth.signInWithOtp({ email: normalizedOtpEmail });
+          if (error) throw error;
+        }
       } else {
         if (!otpPhone || !isValidPhoneNumber(otpPhone)) {
           showToast(lang === 'sw' ? 'Weka namba sahihi ya simu' : 'Enter a valid phone number', 'error');
@@ -219,8 +268,11 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
         }
         const { error } = await supabase.auth.signInWithOtp({ phone: otpPhone });
         if (error) throw error;
+        // Phone OTP code will come via SMS — show popup in "check phone" mode
       }
+
       setOtpSent(true);
+      setOtpPopupVisible(true);  // always open the popup
       showToast(
         lang === 'sw'
           ? `Nambari ya OTP imetumwa kwenye ${otpChannel === 'email' ? 'barua pepe' : 'simu'} yako`
@@ -368,6 +420,129 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
 
   return (
     <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+
+      {/* ── OTP Preview Popup ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {otpPopupVisible && (
+          <motion.div
+            key="otp-preview"
+            initial={{ opacity: 0, y: -24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -16, scale: 0.96 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+            className="fixed top-5 left-1/2 -translate-x-1/2 z-200 w-[min(92vw,380px)]
+                       rounded-2xl bg-white shadow-2xl ring-1 ring-stone-200 overflow-hidden"
+          >
+            {/* Countdown progress bar */}
+            <div className="relative h-1.5 bg-stone-100">
+              <motion.div
+                className="absolute inset-y-0 left-0 bg-emerald-500"
+                initial={{ width: '100%' }}
+                animate={{ width: '0%' }}
+                transition={{ duration: 9, ease: 'linear' }}
+              />
+            </div>
+
+            <div className="px-5 pt-4 pb-5 space-y-3">
+              {/* Header row */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+                    <KeyRound className="h-4 w-4 text-emerald-700" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-stone-900">
+                      {lang === 'sw' ? 'Nambari ya OTP Imetumwa' : 'OTP Code Sent'}
+                    </p>
+                    <p className="text-[11px] text-stone-400">
+                      {lang === 'sw'
+                        ? `Inafutwa baada ya sekunde ${otpCountdown}`
+                        : `Disappears in ${otpCountdown}s`}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={dismissOtpPreview}
+                  className="shrink-0 rounded-full p-1.5 hover:bg-stone-100 transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4 text-stone-400" />
+                </button>
+              </div>
+
+              {/* OTP code — shown if we managed to fetch it via admin API */}
+              {otpPreview ? (
+                <div className="rounded-xl bg-stone-950 px-4 py-3 flex items-center justify-between gap-3">
+                  <span className="text-3xl font-black tracking-[0.3em] text-white font-mono select-all">
+                    {otpPreview}
+                  </span>
+                  <button
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(otpPreview);
+                      setOtpCopied(true);
+                      // Auto-fill the code in the main form input
+                      setOtpCode(otpPreview);
+                      setTimeout(() => setOtpCopied(false), 2000);
+                    }}
+                    className="flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700
+                               px-3 py-1.5 text-xs font-bold text-white transition-colors shrink-0"
+                  >
+                    {otpCopied
+                      ? <><Check className="h-3.5 w-3.5" />{lang === 'sw' ? 'Imenakiliwa!' : 'Copied!'}</>
+                      : <><Copy className="h-3.5 w-3.5" />{lang === 'sw' ? 'Nakili & Jaza' : 'Copy & Fill'}</>
+                    }
+                  </button>
+                </div>
+              ) : (
+                /* Fallback: no code available — guide user to check email/phone */
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-3">
+                  <Mail className="h-5 w-5 text-emerald-600 shrink-0" />
+                  <p className="text-sm text-emerald-900 font-medium">
+                    {otpChannel === 'email'
+                      ? (lang === 'sw' ? `Angalia barua pepe: ${email}` : `Check your email: ${email}`)
+                      : (lang === 'sw' ? `Angalia SMS: ${otpPhone}` : `Check SMS: ${otpPhone}`)}
+                  </p>
+                </div>
+              )}
+
+              {/* Quick in-popup OTP entry */}
+              <div>
+                <p className="text-[11px] font-semibold text-stone-500 mb-1.5">
+                  {lang === 'sw' ? 'Au ingiza moja kwa moja hapa:' : 'Or enter it directly here:'}
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="— — — — — —"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="flex-1 rounded-xl border border-stone-200 px-4 py-2.5 text-center
+                               text-lg font-black tracking-[0.25em] outline-none
+                               focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all"
+                  />
+                  {otpCode.length === 6 && (
+                    <button
+                      onClick={dismissOtpPreview}
+                      className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5
+                                 text-sm font-bold text-white transition-colors"
+                    >
+                      {lang === 'sw' ? 'Thibitisha' : 'Verify'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <p className="text-[10px] text-stone-400 text-center leading-relaxed">
+                {lang === 'sw'
+                  ? 'Popup hii ni kwa maendeleo tu. Itaondolewa baada ya kuunganishwa na SMS/Twilio.'
+                  : 'Dev preview only — will be removed after SMS/Twilio integration.'}
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
