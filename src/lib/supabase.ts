@@ -1,171 +1,143 @@
-import { createClient, Session as SupabaseSession } from '@supabase/supabase-js';
+// src/lib/supabase.ts
+import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY!;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn('⚠️ Supabase credentials are missing. Check your .env file.');
+}
 
-// Re-export Session type
-export type Session = SupabaseSession;
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 20, // Limit for high-traffic tables like activity_logs
+    },
+  },
+});
+
+// Global auth state listener (useful for token issues)
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
+    console.warn(`Auth event: ${event}`);
+    // You can clear query cache here if needed via QueryClient
+  }
+});
+
+// ==================== TYPES ====================
+
+export type UserRole = 'citizen' | 'staff' | 'admin' | 'system';
+
+export interface UserProfile {
+  id: string;
+  citizen_id?: string;
+  birth_date?: string;
+  first_name: string;
+  middle_name?: string;
+  last_name: string;
+  gender?: 'male' | 'female';
+  nida_number?: string;
+  id_type?: string;
+  id_number?: string;
+  passport_number?: string;
+  phone: string;
+  email: string;
+  photo_url?: string;
+  role: UserRole;
+  is_verified: boolean;
+  is_diaspora?: boolean;
+  region?: string;
+  district?: string;
+  assigned_region?: string;
+  assigned_district?: string;
+  ward?: string;
+  street?: string;
+  created_at?: string;
+}
 
 export interface Service {
   id: string;
   name: string;
   name_en?: string;
-  description?: string;
+  description: string;
   description_en?: string;
-  fee: number;
   form_schema: any;
   diaspora_form_schema?: any;
+  document_template?: {
+    document_type?: string;
+    [key: string]: any;
+  };
+  fee: number;
+  active: boolean;
   validity_months?: number;
-  document_template?: any;
   extra_address_fee?: number;
-  is_active?: boolean;
-  active?: boolean;
-  created_at: string;
-}
-
-export interface UserProfile {
-  id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  middle_name?: string;
-  nida_number?: string;
-  phone?: string;
-  photo_url?: string;
-  role: 'citizen' | 'staff' | 'admin';
-  is_verified: boolean;
-  is_diaspora?: boolean;
-  account_status: string;
-  
-  // Location fields
-  region?: string;
-  district?: string;
-  ward?: string;
-  street?: string;
-  
-  // Personal info
-  birth_date?: string;
-  date_of_birth?: string;
-  gender?: string;
-  sex?: string;
-  nationality?: string;
-  country_of_citizenship?: string;
-  marital_status?: string;
-  occupation?: string;
-  education_level?: string;
-  place_of_birth?: string;
-  birth_region?: string;
-  birth_district?: string;
-  
-  // Contact
-  alternative_phone?: string;
-  email_address?: string;
-  alternative_email?: string;
-  
-  // Address details
-  house_number?: string;
-  postal_code?: string;
-  landmark?: string;
-  
-  // Emergency contact
-  emergency_contact_name?: string;
-  emergency_contact_phone?: string;
-  emergency_contact_relation?: string;
-  
-  // Identity
-  id_type?: string;
-  id_number?: string;
-  passport_number?: string;
-  voter_id_number?: string;
-  driving_license_number?: string;
-  citizen_id?: string;
-  seller_id?: string;
-  landlord_id?: string;
-  broker_id?: string;
-  
-  // Diaspora
-  country_of_residence?: string;
-  city_of_residence?: string;
-  diaspora_region?: string;
-  diaspora_district?: string;
-  diaspora_ward?: string;
-  
-  // Staff fields
-  assigned_region?: string;
-  assigned_district?: string;
-  office_id?: string;
-  employee_id?: string;
-  department?: string;
-  position?: string;
-  employment_date?: string;
-  
-  // Additional
-  blood_group?: string;
-  disability_status?: string;
-  religious_affiliation?: string;
-  tribe?: string;
-  
-  // Local officials
-  mtaa_executive_officer?: string;
-  ward_councillor?: string;
-  ward_chairperson?: string;
-  
-  // Metadata
-  last_login?: string;
-  email_verified?: boolean;
-  phone_verified?: boolean;
   created_at?: string;
-  updated_at?: string;
 }
 
 export interface Application {
   id: string;
   user_id: string;
   service_id: string;
-  service_name: string;
+  service_name?: string;
   application_number: string;
-  status: string;
-  created_at: string;
-  updated_at?: string;
-  approved_at?: string;
-  paid_at?: string;
-  issued_at?: string;
-  form_data: any;
-  feedback?: string;
-  buyer_accepted?: boolean;
-  tenant_accepted?: boolean;
+  form_data: Record<string, any>;
+  status: 
+    | 'submitted' 
+    | 'pending_payment'
+    | 'paid' 
+    | 'verified' 
+    | 'pending_review' 
+    | 'approved' 
+    | 'processing'
+    | 'issued' 
+    | 'rejected' 
+    | 'refunded'
+    | 'returned';
+  assigned_staff_id?: string;
+  payment_data?: {
+    transaction_id?: string;
+    amount?: number;
+    payment_method?: string;
+    paid_at?: string;
+    payment_reference?: string;
+    payment_status?: 'pending' | 'pending_confirmation' | 'completed';
+    provider?: string;
+    phone_number?: string;
+    payment_channel?: 'push' | 'reference';
+    initiated_at?: string;
+  };
+  users?: Partial<UserProfile>;
+  services?: Partial<Service> & {
+    name?: string;
+    name_en?: string;
+  };
   region?: string;
   district?: string;
   ward?: string;
   street?: string;
-  assigned_staff_id?: string;
-  target_user_id?: string;
-  target_user_nida?: string;
-  target_user_role?: string;
-  agreement_status?: string;
-  payment_data?: any;
-  confirmation_data?: any;
-  is_confirmed?: boolean;
-  approved_by?: string;
-  rejected_by?: string;
-  returned_by?: string;
-  issued_by?: string;
-  verified_by?: string;
-  verified_at?: string;
+  created_at: string;
+  paid_at?: string;
+  updated_at?: string;
 }
 
-export type UserRole = 'citizen' | 'staff' | 'admin';
-
-export type User = UserProfile;
-
-export interface VirtualOffice {
+export interface ActivityLog {
   id: string;
-  name: string;
-  region: string;
-  district?: string | null;
-  address?: string;
-  level?: string;
+  user_id: string;
+  action: string;
+  action_type?: string;
+  details: string;
+  severity?: 'info' | 'warning' | 'error' | 'critical';
+  status?: 'success' | 'pending' | 'failed';
+  ip_address?: string;
+  user_agent?: string;
+  device_type?: 'desktop' | 'mobile' | 'tablet';
+  resource_type?: string;
+  resource_id?: string;
   created_at: string;
+  users?: UserProfile;
 }

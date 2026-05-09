@@ -13,72 +13,75 @@ import { TANZANIA_LOGO_BASE64 } from '@/constants/logo';
 const eventStyles = StyleSheet.create({
   eventBanner: {
     backgroundColor: '#ec4899',
-    padding: 15,
-    marginBottom: 20,
+    padding: 8,
+    marginBottom: 8,
     alignItems: 'center',
     borderRadius: 4,
   },
   bannerText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: 'bold',
     textTransform: 'uppercase',
   },
   eventName: {
     color: '#ffffff',
-    fontSize: 12,
-    marginTop: 5,
+    fontSize: 9,
+    marginTop: 2,
     fontStyle: 'italic',
   },
   infoCard: {
     flexDirection: 'row',
     backgroundColor: '#fdf2f8',
-    padding: 15,
-    marginVertical: 10,
+    padding: 8,
+    marginVertical: 4,
     borderRadius: 4,
   },
   infoIcon: {
-    width: 50,
+    width: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 15,
+    marginRight: 8,
   },
   iconText: {
-    fontSize: 24,
+    fontSize: 16,
   },
   infoContent: {
     flex: 1,
   },
   infoTitle: {
-    fontSize: 10,
+    fontSize: 8,
     color: '#9d174d',
-    marginBottom: 3,
+    marginBottom: 2,
   },
   infoMain: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: 'bold',
     color: '#1c1917',
   },
   infoSub: {
-    fontSize: 10,
+    fontSize: 8,
     color: '#57534e',
-    marginTop: 2,
+    marginTop: 1,
   },
   guestsBox: {
     backgroundColor: '#fce7f3',
-    padding: 12,
+    padding: 6,
     alignItems: 'center',
-    marginVertical: 10,
-    borderWidth: 2,
+    marginVertical: 4,
+    borderWidth: 1.5,
     borderColor: '#ec4899',
     borderRadius: 4,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
   guestsLabel: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#9d174d',
   },
   guestsNumber: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#9d174d',
   },
@@ -240,13 +243,6 @@ export const KibariSherehePDF: React.FC<DocumentPDFProps> = ({ application, lang
           <Text style={commonStyles.infoValue}>{formData.contact_phone || 'N/A'}</Text>
         </View>
 
-        {formData.whatsapp_group && (
-          <View style={commonStyles.infoRow}>
-            <Text style={commonStyles.infoLabel}>{t.whatsapp}:</Text>
-            <Text style={commonStyles.infoValue}>{formData.whatsapp_group}</Text>
-          </View>
-        )}
-
         {/* Signatures */}
         <View style={commonStyles.signatureSection}>
           <View style={commonStyles.signatureBox}>
@@ -271,7 +267,7 @@ export const KibariSherehePDF: React.FC<DocumentPDFProps> = ({ application, lang
         <View style={commonStyles.footer}>
           <Text style={commonStyles.footerText}>{t.footer}</Text>
           <Text style={commonStyles.metadata}>
-            VERIFICATION ID: {application.id.toUpperCase()} | GENERATED ON: {new Date().toISOString()}
+            ID: {application.id.toUpperCase()} | {new Date().toISOString()}
           </Text>
         </View>
       </Page>

@@ -10,7 +10,7 @@ interface ConfirmationModalProps {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  type?: 'danger' | 'info' | 'success';
+  type?: 'danger' | 'warning' | 'success' | 'info';
 }
 
 export function ConfirmationModal({
@@ -19,10 +19,24 @@ export function ConfirmationModal({
   onConfirm,
   title,
   message,
-  confirmText = 'Confirm',
-  cancelText = 'Cancel',
+  confirmText = 'Thibitisha',
+  cancelText = 'Ghairi',
   type = 'info'
 }: ConfirmationModalProps) {
+  const typeStyles = {
+    danger: 'bg-red-50 text-red-600',
+    warning: 'bg-amber-50 text-amber-600',
+    success: 'bg-emerald-50 text-emerald-600',
+    info: 'bg-blue-50 text-blue-600',
+  };
+
+  const buttonStyles = {
+    danger: 'bg-red-600 hover:bg-red-700',
+    warning: 'bg-amber-600 hover:bg-amber-700',
+    success: 'bg-emerald-600 hover:bg-emerald-700',
+    info: 'bg-stone-900 hover:bg-black',
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -31,35 +45,39 @@ export function ConfirmationModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={onClose}
-            className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
           />
+
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.95, y: 30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative w-full max-w-md bg-white rounded-4xl shadow-2xl overflow-hidden p-8"
+            exit={{ opacity: 0, scale: 0.95, y: 30 }}
+            className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden"
           >
-            <div className="flex items-center justify-between mb-6">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                type === 'danger' ? 'bg-red-50 text-red-600' :
-                type === 'success' ? 'bg-emerald-50 text-emerald-600' :
-                'bg-blue-50 text-blue-600'
-              }`}>
-                <AlertCircle size={24} />
+            <div className="p-8">
+              <div className="flex justify-between items-start mb-6">
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${typeStyles[type]}`}>
+                  <AlertCircle size={28} />
+                </div>
+                <button 
+                  onClick={onClose}
+                  title="Funga dirisha la uthibitisho"
+                  aria-label="Funga dirisha la uthibitisho"
+                  className="text-stone-400 hover:text-stone-600 p-2 -mr-2 -mt-2"
+                >
+                  <X size={24} />
+                </button>
               </div>
-              <button onClick={onClose} aria-label="Close" className="p-2 hover:bg-stone-100 rounded-full transition-colors text-stone-400">
-                <X size={20} />
-              </button>
+
+              <h3 className="text-2xl font-bold text-stone-900 mb-3">{title}</h3>
+              <p className="text-stone-600 leading-relaxed">{message}</p>
             </div>
 
-            <h3 className="text-xl font-black text-stone-900 mb-2">{title}</h3>
-            <p className="text-stone-500 font-medium leading-relaxed mb-8">{message}</p>
-
-            <div className="flex gap-4">
+            <div className="border-t p-4 flex gap-3 bg-stone-50">
               <button
                 onClick={onClose}
-                className="flex-1 h-14 bg-stone-100 text-stone-600 rounded-2xl font-bold hover:bg-stone-200 transition-all"
+                className="flex-1 h-14 bg-white border border-stone-200 hover:bg-stone-100 rounded-2xl font-semibold text-stone-700 transition-all"
               >
                 {cancelText}
               </button>
@@ -68,11 +86,7 @@ export function ConfirmationModal({
                   onConfirm();
                   onClose();
                 }}
-                className={`flex-1 h-14 text-white rounded-2xl font-bold transition-all shadow-lg ${
-                  type === 'danger' ? 'bg-red-600 hover:bg-red-700 shadow-red-200' :
-                  type === 'success' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200' :
-                  'bg-stone-900 hover:bg-black shadow-stone-200'
-                }`}
+                className={`flex-1 h-14 text-white rounded-2xl font-semibold transition-all ${buttonStyles[type]}`}
               >
                 {confirmText}
               </button>

@@ -1,22 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Users, 
-  Search, 
-  Filter, 
-  MoreVertical, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  ShieldCheck,
-  ShieldAlert,
-  Loader2,
-  Plus,
-  X,
-  UserPlus,
-  CheckCircle2,
-  Check,
-  XCircle
+  Users, Search, Loader2, Plus, X, UserPlus, CheckCircle2, 
+  XCircle, Check, MoreVertical, Mail, Phone, MapPin, ShieldCheck, ShieldAlert 
 } from 'lucide-react';
 import { supabase, UserProfile } from '@/lib/supabase';
 import { useLanguage } from '@/context/LanguageContext';
@@ -39,39 +25,56 @@ interface PendingProfileChange {
   };
 }
 
-export function StaffCitizenManagement() {
-  const { lang, t } = useLanguage();
+export function CitizenManagement() {
+  const { lang } = useLanguage();
   const { showToast } = useToast();
+
   const [citizens, setCitizens] = useState<UserProfile[]>([]);
+  const [pendingChanges, setPendingChanges] = useState<PendingProfileChange[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [loadingChanges, setLoadingChanges] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'verified' | 'unverified'>('all');
+  const [activeTab, setActiveTab] = useState<'citizens' | 'profile-changes'>('citizens');
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'citizens' | 'profile-changes'>('citizens');
-  const [pendingChanges, setPendingChanges] = useState<PendingProfileChange[]>([]);
-  const [loadingChanges, setLoadingChanges] = useState(false);
 
   const [newCitizen, setNewCitizen] = useState({
-    firstName: "",
-    middleName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    nidaNumber: "",
-    sex: "Me",
-    region: "",
-    district: "",
-    ward: "",
-    street: ""
+    firstName: '',
+    middleName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    nidaNumber: '',
+    sex: 'Me' as 'Me' | 'Ke',
+    region: '',
+    district: '',
+    ward: '',
+    street: ''
   });
 
-  useEffect(() => {
-    fetchCitizens();
-    fetchPendingProfileChanges();
-  }, []);
+  // Fetch citizens
+  const fetchCitizens = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('role', 'citizen')
+        .order('created_at', { ascending: false });
 
-  const fetchPendingProfileChanges = async () => {
+      if (error) throw error;
+      setCitizens(data || []);
+    } catch (error) {
+      console.error('Failed to fetch citizens:', error);
+      showToast(lang === 'sw' ? 'Hitilafu kupata wananchi' : 'Error fetching citizens', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [lang, showToast]);
+
+  // Fetch pending profile changes
+  const fetchPendingProfileChanges = useCallback(async () => {
     setLoadingChanges(true);
     try {
       const { data, error } = await supabase
@@ -87,21 +90,67 @@ export function StaffCitizenManagement() {
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching profile changes:', error);
-        setPendingChanges([]);
-        return;
-      }
-
+      if (error) throw error;
       setPendingChanges(data || []);
     } catch (error) {
-      console.error('Exception fetching profile changes:', error);
+      console.error('Failed to fetch profile changes:', error);
       setPendingChanges([]);
     } finally {
       setLoadingChanges(false);
     }
+  }, []);
+
+  useEffect(() => {
+    fetchCitizens();
+    fetchPendingProfileChanges();
+  }, [fetchCitizens, fetchPendingProfileChanges]);
+
+  // Verify citizen
+  const handleVerify = async (citizenId: string) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ is_verified: true })
+        .eq('id', citizenId);
+
+      if (error) throw error;
+
+      setCitizens(prev => prev.map(c => 
+        c.id === citizenId ? { ...c, is_verified: true } : c
+      ));
+
+      showToast(
+        lang === 'sw' ? 'Mwananchi amethibitishwa kikamilifu!' : 'Citizen verified successfully!',
+        'success'
+      );
+    } catch (error: any) {
+      showToast(error.message || 'Verification failed', 'error');
+    }
   };
 
+  // Decline / Delete citizen
+  const handleDecline = async (citizenId: string) => {
+    if (!confirm(lang === 'sw' ? 'Je, una uhakika unataka kukataa uhakiki?' : 'Are you sure you want to decline verification?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', citizenId);
+
+      if (error) throw error;
+
+      setCitizens(prev => prev.filter(c => c.id !== citizenId));
+      showToast(
+        lang === 'sw' ? 'Uhakiki umekataliwa.' : 'Verification declined.',
+        'success'
+      );
+    } catch (error: any) {
+      showToast(error.message || 'Failed to decline', 'error');
+    }
+  };
+
+  // Approve profile change
   const handleApproveChange = async (change: PendingProfileChange) => {
     try {
       const { error: updateError } = await supabase
@@ -115,30 +164,28 @@ export function StaffCitizenManagement() {
         .from('profile_change_requests')
         .update({ 
           status: 'approved',
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: (await supabase.auth.getUser()).data.user?.id
+          reviewed_at: new Date().toISOString()
         })
         .eq('id', change.id);
 
       if (statusError) throw statusError;
 
       setPendingChanges(prev => prev.filter(c => c.id !== change.id));
-      showToast(lang === 'sw' ? 'Mabadiliko yameidhinishwa' : 'Change approved successfully', 'success');
+      showToast(lang === 'sw' ? 'Mabadiliko yameidhinishwa' : 'Change approved', 'success');
       fetchCitizens();
     } catch (error: any) {
-      console.error('Error approving change:', error);
-      showToast(error.message || (lang === 'sw' ? 'Hitilafu kuidhinisha' : 'Error approving change'), 'error');
+      showToast(error.message || 'Failed to approve change', 'error');
     }
   };
 
+  // Reject profile change
   const handleRejectChange = async (change: PendingProfileChange) => {
     try {
       const { error } = await supabase
         .from('profile_change_requests')
         .update({ 
           status: 'rejected',
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: (await supabase.auth.getUser()).data.user?.id
+          reviewed_at: new Date().toISOString()
         })
         .eq('id', change.id);
 
@@ -147,146 +194,64 @@ export function StaffCitizenManagement() {
       setPendingChanges(prev => prev.filter(c => c.id !== change.id));
       showToast(lang === 'sw' ? 'Mabadiliko yamekataliwa' : 'Change rejected', 'info');
     } catch (error: any) {
-      console.error('Error rejecting change:', error);
-      showToast(error.message || (lang === 'sw' ? 'Hitilafu kukataa' : 'Error rejecting change'), 'error');
+      showToast(error.message || 'Failed to reject change', 'error');
     }
   };
 
-  const getFieldLabel = (field: string): string => {
-    const labels: Record<string, { en: string; sw: string }> = {
-      first_name: { en: 'First Name', sw: 'Jina la Kwanza' },
-      middle_name: { en: 'Middle Name', sw: 'Jina la Kati' },
-      last_name: { en: 'Last Name', sw: 'Jina la Mwisho' },
-      nida_number: { en: 'NIDA Number', sw: 'Namba ya NIDA' },
-      nationality: { en: 'Nationality', sw: 'Uraia' },
-      gender: { en: 'Gender', sw: 'Jinsia' },
-      phone: { en: 'Phone', sw: 'Simu' },
-      region: { en: 'Region', sw: 'Mkoa' },
-      district: { en: 'District', sw: 'Wilaya' },
-      ward: { en: 'Ward', sw: 'Kata' },
-      street: { en: 'Street', sw: 'Mtaa' }
-    };
-    return labels[field]?.[lang] || field;
-  };
-
-  const fetchCitizens = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('role', 'citizen')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching citizens:', error);
-        showToast(lang === 'sw' ? 'Hitilafu kupata wananchi' : 'Error fetching citizens', 'error');
-        setCitizens([]);
-        return;
-      }
-      
-      setCitizens(data || []);
-    } catch (error) {
-      console.error('Error fetching citizens:', error);
-      setCitizens([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerify = async (citizenId: string) => {
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({ is_verified: true })
-        .eq('id', citizenId);
-
-      if (error) throw error;
-      setCitizens(prev => prev.map(c => c.id === citizenId ? { ...c, is_verified: true } : c));
-      showToast(lang === 'sw' ? 'Mwananchi amehakikiwa kikamilifu!' : 'Citizen verified successfully!', 'success');
-    } catch (error: any) {
-      showToast(error.message, 'error');
-    }
-  };
-
-  const handleDecline = async (citizenId: string) => {
-    if (!confirm(lang === 'sw' ? 'Je, una uhakika unataka kukataa uhakiki huu?' : 'Are you sure you want to decline this verification?')) return;
-    
-    try {
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', citizenId);
-
-      if (error) throw error;
-      setCitizens(prev => prev.filter(c => c.id !== citizenId));
-      showToast(lang === 'sw' ? 'Uhakiki umekataliwa.' : 'Verification declined.', 'success');
-    } catch (error: any) {
-      showToast(error.message, 'error');
-    }
-  };
-
+  // Add new citizen (Demo + Real support)
   const handleAddCitizen = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const isConfigured = supabaseUrl && !supabaseUrl.includes('YOUR_SUPABASE_URL') && !supabaseUrl.includes('bqxevbmjqvogebmlbidx');
+      const citizenData = {
+        first_name: newCitizen.firstName.toUpperCase(),
+        middle_name: newCitizen.middleName.toUpperCase(),
+        last_name: newCitizen.lastName.toUpperCase(),
+        email: newCitizen.email,
+        phone: newCitizen.phone,
+        nida_number: newCitizen.nidaNumber,
+        gender: newCitizen.sex,
+        region: newCitizen.region,
+        district: newCitizen.district,
+        ward: newCitizen.ward,
+        street: newCitizen.street,
+        role: 'citizen',
+        is_verified: true, // Staff-added citizens are auto-verified
+      };
 
-      if (!isConfigured) {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        const citizen: UserProfile = {
-          id: 'demo-' + Math.random().toString(36).substring(7),
-          first_name: newCitizen.firstName.toUpperCase(),
-          middle_name: newCitizen.middleName.toUpperCase(),
-          last_name: newCitizen.lastName.toUpperCase(),
-          email: newCitizen.email,
-          phone: newCitizen.phone,
-          nida_number: newCitizen.nidaNumber,
-          sex: newCitizen.sex,
-          region: newCitizen.region,
-          district: newCitizen.district,
-          ward: newCitizen.ward,
-          street: newCitizen.street,
-          role: 'citizen',
-          account_status: 'active',
-          is_verified: true // Staff created citizens are verified by default
-        };
+      const { error } = await supabase.from('users').insert(citizenData);
 
-        const existing = JSON.parse(localStorage.getItem('demo_citizens') || '[]');
-        localStorage.setItem('demo_citizens', JSON.stringify([citizen, ...existing]));
-        
-        setCitizens(prev => [citizen, ...prev]);
-        setShowAddModal(false);
-        setNewCitizen({
-          firstName: "", middleName: "", lastName: "", email: "", phone: "",
-          nidaNumber: "", sex: "Me", region: "", district: "", ward: "", street: ""
-        });
-        showToast(lang === 'sw' ? 'Mwananchi amesajiliwa kikamilifu!' : 'Citizen registered successfully!', 'success');
-        return;
-      }
+      if (error) throw error;
 
-      // In real mode, we'd probably use a service role or a specific function to create users
-      // For now, we'll simulate the insert into the users table
-      // Note: Supabase Auth requires a user to be created in auth.users first.
-      // In a real app, this would be an Edge Function.
-      throw new Error("Manual registration requires backend integration (Edge Functions). Please use Demo Mode for this feature.");
+      showToast(
+        lang === 'sw' ? 'Mwananchi amesajiliwa kikamilifu!' : 'Citizen registered successfully!',
+        'success'
+      );
 
+      setShowAddModal(false);
+      resetNewCitizenForm();
+      fetchCitizens();
     } catch (error: any) {
-      showToast(error.message, 'error');
+      showToast(error.message || 'Registration failed', 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const resetNewCitizenForm = () => {
+    setNewCitizen({
+      firstName: '', middleName: '', lastName: '', email: '', phone: '',
+      nidaNumber: '', sex: 'Me', region: '', district: '', ward: '', street: ''
+    });
+  };
+
+  // Filtered citizens
   const filteredCitizens = citizens.filter(c => {
     const matchesSearch = 
-      c.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.nida_number?.includes(searchQuery);
-    
+      `${c.first_name} ${c.last_name} ${c.email}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.nida_number || '').includes(searchQuery);
+
     const matchesFilter = 
       filter === 'all' || 
       (filter === 'verified' && c.is_verified) || 
@@ -306,119 +271,217 @@ export function StaffCitizenManagement() {
           <h1 className="text-3xl font-black text-stone-900 tracking-tight">
             {lang === 'sw' ? 'Usimamizi wa Wananchi' : 'Citizen Management'}
           </h1>
-          <p className="text-stone-500 font-medium">
-            {lang === 'sw' ? 'Sajili na dhibiti wananchi wanaofika ofisini' : 'Register and manage walk-in citizens'}
+          <p className="text-stone-500">
+            {lang === 'sw' ? 'Sajili na dhibiti wananchi' : 'Register and manage citizens'}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <button 
-            onClick={() => setShowAddModal(true)}
-            className="h-12 px-6 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-100"
-          >
-            <Plus size={20} />
-            {lang === 'sw' ? 'Sajili Mwananchi' : 'Register Citizen'}
-          </button>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
-            <input 
-              type="text"
-              placeholder={lang === 'sw' ? 'Tafuta...' : 'Search...'}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 h-12 bg-white border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all w-full sm:w-64 font-medium"
-            />
-          </div>
-        </div>
+
+        <button 
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-6 h-12 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg"
+        >
+          <Plus size={20} />
+          {lang === 'sw' ? 'Sajili Mwananchi' : 'Register Citizen'}
+        </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-stone-200">
+      <div className="flex border-b border-stone-200">
         <button
           onClick={() => setActiveTab('citizens')}
           className={cn(
-            "px-6 py-3 font-bold text-sm border-b-2 transition-all",
-            activeTab === 'citizens' 
-              ? "border-emerald-600 text-emerald-600" 
-              : "border-transparent text-stone-500 hover:text-stone-700"
+            "px-8 py-4 font-bold text-sm border-b-2 transition-all",
+            activeTab === 'citizens' ? "border-emerald-600 text-emerald-600" : "border-transparent text-stone-500 hover:text-stone-700"
           )}
         >
-          <Users size={16} className="inline mr-2" />
+          <Users className="inline mr-2" size={18} />
           {lang === 'sw' ? 'Wananchi' : 'Citizens'} ({filteredCitizens.length})
         </button>
         <button
           onClick={() => setActiveTab('profile-changes')}
           className={cn(
-            "px-6 py-3 font-bold text-sm border-b-2 transition-all relative",
-            activeTab === 'profile-changes' 
-              ? "border-emerald-600 text-emerald-600" 
-              : "border-transparent text-stone-500 hover:text-stone-700"
+            "px-8 py-4 font-bold text-sm border-b-2 transition-all relative",
+            activeTab === 'profile-changes' ? "border-emerald-600 text-emerald-600" : "border-transparent text-stone-500 hover:text-stone-700"
           )}
         >
-          <CheckCircle2 size={16} className="inline mr-2" />
+          <CheckCircle2 className="inline mr-2" size={18} />
           {lang === 'sw' ? 'Mabadiliko ya Wasifu' : 'Profile Changes'}
           {pendingChanges.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full">
               {pendingChanges.length}
             </span>
           )}
         </button>
       </div>
 
-      {activeTab === 'profile-changes' ? (
-        <div className="bg-white rounded-4xl border border-stone-100 shadow-xl overflow-hidden">
-          {loadingChanges ? (
-            <div className="p-20 flex flex-col items-center justify-center gap-4">
+      {/* Citizens Tab */}
+      {activeTab === 'citizens' && (
+        <div className="bg-white rounded-3xl border border-stone-100 shadow-xl overflow-hidden">
+          {/* Search & Filter */}
+          <div className="p-6 border-b flex flex-col sm:flex-row gap-4 bg-stone-50">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
+              <input
+                type="text"
+                placeholder={lang === 'sw' ? 'Tafuta kwa jina au NIDA...' : 'Search by name or NIDA...'}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-4 h-12 bg-white border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as 'all' | 'verified' | 'unverified')}
+              title={lang === 'sw' ? 'Chuja wananchi' : 'Filter citizens'}
+              aria-label={lang === 'sw' ? 'Chuja wananchi' : 'Filter citizens'}
+              className="h-12 px-4 bg-white border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="all">{lang === 'sw' ? 'Wote' : 'All'}</option>
+              <option value="verified">{lang === 'sw' ? 'Wamethibitishwa' : 'Verified'}</option>
+              <option value="unverified">{lang === 'sw' ? 'Wanasubiri' : 'Pending'}</option>
+            </select>
+          </div>
+
+          {loading ? (
+            <div className="p-20 flex flex-col items-center">
               <Loader2 className="animate-spin text-emerald-600" size={40} />
-              <p className="text-stone-500 font-bold">{lang === 'sw' ? 'Inapakia...' : 'Loading changes...'}</p>
+              <p className="mt-4 text-stone-500">{lang === 'sw' ? 'Inapakia...' : 'Loading citizens...'}</p>
+            </div>
+          ) : filteredCitizens.length === 0 ? (
+            <div className="p-20 text-center text-stone-400">
+              Hakuna wananchi wanaolingana na utafutaji wako.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-stone-50 border-b">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-stone-500 uppercase">Mwananchi</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-stone-500 uppercase">Mawasiliano</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-stone-500 uppercase">Eneo</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-stone-500 uppercase">Hali</th>
+                    <th className="px-6 py-4 text-right"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {filteredCitizens.map((citizen) => (
+                    <tr key={citizen.id} className="hover:bg-stone-50 transition-colors">
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-4">
+                          <div className="w-11 h-11 bg-stone-100 rounded-2xl flex items-center justify-center text-stone-600 font-bold text-lg">
+                            {citizen.first_name?.[0]}{citizen.last_name?.[0]}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-stone-900">
+                              {citizen.first_name} {citizen.last_name}
+                            </p>
+                            <p className="text-xs text-stone-500 font-mono">{citizen.nida_number || 'N/A'}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="space-y-1 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Mail size={15} className="text-stone-400" /> {citizen.email}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Phone size={15} className="text-stone-400" /> {citizen.phone}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-2 text-sm text-stone-600">
+                          <MapPin size={15} /> {citizen.region}, {citizen.district}
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        {citizen.is_verified ? (
+                          <span className="inline-flex items-center gap-1.5 px-4 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
+                            <ShieldCheck size={14} /> {lang === 'sw' ? 'Imethibitishwa' : 'Verified'}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-4 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">
+                            <ShieldAlert size={14} /> {lang === 'sw' ? 'Inasubiri' : 'Pending'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        {!citizen.is_verified && (
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => handleVerify(citizen.id)}
+                              className="p-2 hover:bg-emerald-50 rounded-lg text-emerald-600"
+                              title={lang === 'sw' ? 'Thibitisha mwananchi' : 'Verify citizen'}
+                              aria-label={lang === 'sw' ? 'Thibitisha mwananchi' : 'Verify citizen'}
+                            >
+                              <Check size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDecline(citizen.id)}
+                              className="p-2 hover:bg-red-50 rounded-lg text-red-600"
+                              title={lang === 'sw' ? 'Kataa mwananchi' : 'Decline citizen'}
+                              aria-label={lang === 'sw' ? 'Kataa mwananchi' : 'Decline citizen'}
+                            >
+                              <XCircle size={18} />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Profile Changes Tab */}
+      {activeTab === 'profile-changes' && (
+        <div className="bg-white rounded-3xl border border-stone-100 shadow-xl">
+          {loadingChanges ? (
+            <div className="p-20 flex flex-col items-center">
+              <Loader2 className="animate-spin text-emerald-600" size={40} />
             </div>
           ) : pendingChanges.length === 0 ? (
             <div className="p-20 text-center">
-              <div className="w-20 h-20 bg-stone-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Check className="text-stone-300" size={40} />
-              </div>
-              <h3 className="text-xl font-bold text-stone-900">{lang === 'sw' ? 'Hakuna Mabadiliko Yanayosubiri' : 'No Pending Changes'}</h3>
-              <p className="text-stone-500 font-medium">{lang === 'sw' ? 'Mabadiliko yote ya wasifu yameshughulikiwa' : 'All profile changes have been processed'}</p>
+              <CheckCircle2 className="mx-auto text-emerald-300" size={60} />
+              <p className="mt-6 text-stone-500 font-medium">Hakuna mabadiliko yanayosubiri</p>
             </div>
           ) : (
-            <div className="divide-y divide-stone-100">
+            <div className="divide-y">
               {pendingChanges.map((change) => (
                 <div key={change.id} className="p-6 hover:bg-stone-50 transition-colors">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
-                        <CheckCircle2 size={20} className="text-amber-600" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-stone-900">
-                          {change.users?.first_name} {change.users?.last_name}
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-bold">
+                        {change.users?.first_name} {change.users?.last_name}
+                      </p>
+                      <p className="text-sm text-stone-500">{change.users?.email}</p>
+                      <div className="mt-3 bg-amber-50 p-4 rounded-2xl">
+                        <p className="text-xs uppercase tracking-widest text-amber-600 font-bold mb-1">
+                          {change.field_name.replace(/_/g, ' ').toUpperCase()}
                         </p>
-                        <p className="text-xs text-stone-500">{change.users?.email}</p>
-                        <div className="mt-2 bg-stone-50 rounded-lg p-3">
-                          <p className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">
-                            {getFieldLabel(change.field_name)}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <span className="text-stone-500 line-through">{change.old_value || '-'}</span>
-                            <span className="text-stone-400">→</span>
-                            <span className="font-bold text-emerald-600">{change.new_value}</span>
-                          </div>
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="line-through text-stone-400">{change.old_value || '-'}</span>
+                          <span className="text-emerald-600 font-bold">â†’</span>
+                          <span className="font-bold text-emerald-700">{change.new_value}</span>
                         </div>
-                        <p className="text-xs text-stone-400 mt-2">
-                          {new Date(change.created_at).toLocaleString(lang === 'sw' ? 'sw-TZ' : 'en-US')}
-                        </p>
                       </div>
                     </div>
-                    <div className="flex gap-2">
+
+                    <div className="flex gap-3">
                       <button
                         onClick={() => handleApproveChange(change)}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all"
+                        className="px-5 py-2 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all flex items-center gap-2"
                       >
                         <Check size={16} />
                         {lang === 'sw' ? 'Idhinisha' : 'Approve'}
                       </button>
                       <button
                         onClick={() => handleRejectChange(change)}
-                        className="flex items-center gap-2 px-4 py-2 bg-stone-100 text-stone-600 rounded-xl font-bold hover:bg-stone-200 transition-all"
+                        className="px-5 py-2 bg-stone-100 text-stone-700 rounded-xl font-bold hover:bg-stone-200 transition-all flex items-center gap-2"
                       >
                         <X size={16} />
                         {lang === 'sw' ? 'Kataa' : 'Reject'}
@@ -430,312 +493,93 @@ export function StaffCitizenManagement() {
             </div>
           )}
         </div>
-      ) : (
-      <div className="bg-white rounded-4xl border border-stone-100 shadow-xl overflow-hidden">
-        {loading ? (
-          <div className="p-20 flex flex-col items-center justify-center gap-4">
-            <Loader2 className="animate-spin text-emerald-600" size={40} />
-            <p className="text-stone-500 font-bold">{lang === 'sw' ? 'Inapakia...' : 'Loading citizens...'}</p>
-          </div>
-        ) : filteredCitizens.length === 0 ? (
-          <div className="p-20 text-center">
-            <div className="w-20 h-20 bg-stone-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Users className="text-stone-300" size={40} />
-            </div>
-            <h3 className="text-xl font-bold text-stone-900">{lang === 'sw' ? 'Hakuna Wananchi' : 'No Citizens Found'}</h3>
-            <p className="text-stone-500 font-medium">{lang === 'sw' ? 'Jaribu kubadilisha vigezo vya utafutaji' : 'Try adjusting your search or filter'}</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-stone-50 border-b border-stone-100">
-                  <th className="px-6 py-4 text-[10px] font-black text-stone-400 uppercase tracking-widest">{lang === 'sw' ? 'Mwananchi' : 'Citizen'}</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-stone-400 uppercase tracking-widest">{lang === 'sw' ? 'Mawasiliano' : 'Contact'}</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-stone-400 uppercase tracking-widest">{lang === 'sw' ? 'Mahali' : 'Location'}</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-stone-400 uppercase tracking-widest">{lang === 'sw' ? 'Hali' : 'Status'}</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-stone-400 uppercase tracking-widest"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-50">
-                {filteredCitizens.map((citizen) => (
-                  <tr key={citizen.id} className="hover:bg-stone-50/50 transition-colors group">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 font-bold">
-                          {citizen.first_name[0]}{citizen.last_name[0]}
-                        </div>
-                        <div>
-                          <p className="font-bold text-stone-900">{citizen.first_name} {citizen.last_name}</p>
-                          <p className="text-xs text-stone-500 font-medium">NIDA: {citizen.nida_number || 'N/A'}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm text-stone-600 font-medium">
-                          <Mail size={14} className="text-stone-400" />
-                          {citizen.email}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-stone-600 font-medium">
-                          <Phone size={14} className="text-stone-400" />
-                          {citizen.phone}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-sm text-stone-600 font-medium">
-                        <MapPin size={14} className="text-stone-400" />
-                        {citizen.region}, {citizen.district}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {citizen.is_verified ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-bold">
-                          <ShieldCheck size={14} />
-                          {lang === 'sw' ? 'Imehakikiwa' : 'Verified'}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-600 text-xs font-bold">
-                          <ShieldAlert size={14} />
-                          {lang === 'sw' ? 'Inasubiri' : 'Pending'}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {!citizen.is_verified && (
-                          <>
-                            <button 
-                              onClick={() => handleVerify(citizen.id)}
-                              className="p-2 hover:bg-emerald-50 rounded-lg transition-colors text-emerald-600"
-                              title={lang === 'sw' ? 'Thibitisha' : 'Verify'}
-                            >
-                              <Check size={18} />
-                            </button>
-                            <button 
-                              onClick={() => handleDecline(citizen.id)}
-                              className="p-2 hover:bg-red-50 rounded-lg transition-colors text-red-600"
-                              title={lang === 'sw' ? 'Kataa' : 'Decline'}
-                            >
-                              <XCircle size={18} />
-                            </button>
-                          </>
-                        )}
-                        <button 
-                          className="p-2 hover:bg-stone-100 rounded-lg transition-colors text-stone-400"
-                          title={lang === 'sw' ? 'Chaguo zaidi' : 'More options'}
-                          aria-label={lang === 'sw' ? 'Chaguo zaidi' : 'More options'}
-                        >
-                          <MoreVertical size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
       )}
 
       {/* Add Citizen Modal */}
       <AnimatePresence>
         {showAddModal && (
-          <div className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowAddModal(false)}
-              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+          <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden"
             >
-              <div className="px-8 py-6 border-b border-stone-100 flex items-center justify-between bg-white sticky top-0 z-10">
+              <div className="px-8 py-6 border-b flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-                    <UserPlus size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black tracking-tight text-stone-900">
-                      {lang === 'sw' ? 'Usajili wa Mwananchi' : 'Citizen Registration'}
-                    </h2>
-                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest leading-none">WALK-IN REGISTRATION</p>
-                  </div>
+                  <UserPlus className="text-emerald-600" size={28} />
+                  <h2 className="text-2xl font-bold">Sajili Mwananchi Mpya</h2>
                 </div>
-                <button 
+                <button
                   onClick={() => setShowAddModal(false)}
-                  className="p-2 hover:bg-stone-100 rounded-full transition-colors text-stone-400"
-                  title={lang === 'sw' ? 'Funga' : 'Close'}
-                  aria-label={lang === 'sw' ? 'Funga' : 'Close'}
+                  className="text-stone-400 hover:text-stone-600"
+                  title={lang === 'sw' ? 'Funga dirisha' : 'Close dialog'}
+                  aria-label={lang === 'sw' ? 'Funga dirisha' : 'Close dialog'}
                 >
-                  <X size={20} />
+                  <X size={24} />
                 </button>
               </div>
 
-              <form onSubmit={handleAddCitizen} className="flex-1 overflow-y-auto p-8 space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">{lang === 'sw' ? 'Jina la Kwanza' : 'First Name'}</label>
-                    <input 
-                      type="text"
+              <form onSubmit={handleAddCitizen} className="p-8 space-y-6">
+                {/* Form fields - simplified and clean */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-500 mb-2">Jina la Kwanza</label>
+                    <input
                       required
                       value={newCitizen.firstName}
-                      onChange={(e) => setNewCitizen({...newCitizen, firstName: e.target.value})}
-                      className="w-full h-12 px-4 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
-                      aria-label={lang === 'sw' ? 'Jina la Kwanza' : 'First Name'}
+                      onChange={(e) => setNewCitizen({ ...newCitizen, firstName: e.target.value })}
+                      className="w-full h-12 px-4 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500"
+                      placeholder={lang === 'sw' ? 'Andika jina la kwanza' : 'Enter first name'}
+                      title={lang === 'sw' ? 'Jina la kwanza' : 'First name'}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">{lang === 'sw' ? 'Jina la Kati' : 'Middle Name'}</label>
-                    <input 
-                      type="text"
-                      value={newCitizen.middleName}
-                      onChange={(e) => setNewCitizen({...newCitizen, middleName: e.target.value})}
-                      className="w-full h-12 px-4 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
-                      aria-label={lang === 'sw' ? 'Jina la Kati' : 'Middle Name'}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">{lang === 'sw' ? 'Jina la Mwisho' : 'Last Name'}</label>
-                    <input 
-                      type="text"
+                  <div>
+                    <label className="block text-xs font-bold text-stone-500 mb-2">Jina la Mwisho</label>
+                    <input
                       required
                       value={newCitizen.lastName}
-                      onChange={(e) => setNewCitizen({...newCitizen, lastName: e.target.value})}
-                      className="w-full h-12 px-4 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
-                      aria-label={lang === 'sw' ? 'Jina la Mwisho' : 'Last Name'}
+                      onChange={(e) => setNewCitizen({ ...newCitizen, lastName: e.target.value })}
+                      className="w-full h-12 px-4 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500"
+                      placeholder={lang === 'sw' ? 'Andika jina la mwisho' : 'Enter last name'}
+                      title={lang === 'sw' ? 'Jina la mwisho' : 'Last name'}
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">{lang === 'sw' ? 'Barua Pepe' : 'Email'}</label>
-                    <input 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-500 mb-2">Barua Pepe</label>
+                    <input
                       type="email"
                       required
                       value={newCitizen.email}
-                      onChange={(e) => setNewCitizen({...newCitizen, email: e.target.value})}
-                      className="w-full h-12 px-4 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
-                      aria-label={lang === 'sw' ? 'Barua Pepe' : 'Email'}
+                      onChange={(e) => setNewCitizen({ ...newCitizen, email: e.target.value })}
+                      className="w-full h-12 px-4 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500"
+                      placeholder={lang === 'sw' ? 'Andika barua pepe' : 'Enter email'}
+                      title={lang === 'sw' ? 'Barua pepe' : 'Email'}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">{lang === 'sw' ? 'Namba ya Simu' : 'Phone Number'}</label>
-                    <input 
-                      type="tel"
+                  <div>
+                    <label className="block text-xs font-bold text-stone-500 mb-2">Simu</label>
+                    <input
                       required
                       value={newCitizen.phone}
-                      onChange={(e) => setNewCitizen({...newCitizen, phone: e.target.value})}
-                      className="w-full h-12 px-4 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
-                      aria-label={lang === 'sw' ? 'Namba ya Simu' : 'Phone Number'}
+                      onChange={(e) => setNewCitizen({ ...newCitizen, phone: e.target.value })}
+                      className="w-full h-12 px-4 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500"
+                      placeholder={lang === 'sw' ? 'Andika namba ya simu' : 'Enter phone number'}
+                      title={lang === 'sw' ? 'Namba ya simu' : 'Phone number'}
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">{lang === 'sw' ? 'Namba ya NIDA' : 'NIDA Number'}</label>
-                    <input 
-                      type="text"
-                      required
-                      value={newCitizen.nidaNumber}
-                      onChange={(e) => setNewCitizen({...newCitizen, nidaNumber: e.target.value})}
-                      className="w-full h-12 px-4 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
-                      placeholder="20-digit number"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">{lang === 'sw' ? 'Jinsia' : 'Gender'}</label>
-                    <div className="flex gap-2">
-                      {['Me', 'Ke'].map(s => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => setNewCitizen({...newCitizen, sex: s})}
-                          className={cn(
-                            "flex-1 h-12 rounded-xl font-bold border-2 transition-all",
-                            newCitizen.sex === s ? "bg-emerald-50 border-emerald-600 text-emerald-600" : "bg-white border-stone-100 text-stone-400"
-                          )}
-                        >
-                          {s === 'Me' ? (lang === 'sw' ? 'Mwanaume' : 'Male') : (lang === 'sw' ? 'Mwanamke' : 'Female')}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">{lang === 'sw' ? 'Mkoa' : 'Region'}</label>
-                    <select 
-                      required
-                      value={newCitizen.region}
-                      onChange={(e) => setNewCitizen({...newCitizen, region: e.target.value, district: "", ward: ""})}
-                      className="w-full h-12 px-4 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
-                      aria-label={lang === 'sw' ? 'Mkoa' : 'Region'}
-                    >
-                      <option value="">Select Region</option>
-                      {TANZANIA_ADDRESS_DATA.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">{lang === 'sw' ? 'Wilaya' : 'District'}</label>
-                    <select 
-                      required
-                      value={newCitizen.district}
-                      onChange={(e) => setNewCitizen({...newCitizen, district: e.target.value, ward: ""})}
-                      disabled={!newCitizen.region}
-                      className="w-full h-12 px-4 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all font-medium disabled:opacity-50"
-                      aria-label={lang === 'sw' ? 'Wilaya' : 'District'}
-                    >
-                      <option value="">Select District</option>
-                      {TANZANIA_ADDRESS_DATA.find(r => r.name === newCitizen.region)?.districts.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">{lang === 'sw' ? 'Kata' : 'Ward'}</label>
-                    <input 
-                      type="text"
-                      required
-                      value={newCitizen.ward}
-                      onChange={(e) => setNewCitizen({...newCitizen, ward: e.target.value})}
-                      className="w-full h-12 px-4 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
-                      aria-label={lang === 'sw' ? 'Kata' : 'Ward'}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-stone-500 uppercase tracking-widest ml-1">{lang === 'sw' ? 'Mtaa' : 'Street'}</label>
-                    <input 
-                      type="text"
-                      required
-                      value={newCitizen.street}
-                      onChange={(e) => setNewCitizen({...newCitizen, street: e.target.value})}
-                      className="w-full h-12 px-4 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
-                      aria-label={lang === 'sw' ? 'Mtaa' : 'Street'}
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4">
-                  <button 
-                    disabled={isSubmitting}
-                    className="w-full h-14 bg-emerald-600 text-white rounded-2xl font-bold text-lg hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 flex items-center justify-center gap-2 disabled:opacity-50"
-                    type="submit"
-                  >
-                    {isSubmitting ? <Loader2 className="animate-spin" /> : (lang === 'sw' ? 'Kamilisha Usajili' : 'Complete Registration')}
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full h-14 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 disabled:opacity-70 flex items-center justify-center gap-3"
+                >
+                  {isSubmitting ? <Loader2 className="animate-spin" /> : 'Kamilisha Usajili'}
+                </button>
               </form>
             </motion.div>
           </div>

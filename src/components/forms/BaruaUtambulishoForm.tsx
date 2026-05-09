@@ -1,13 +1,13 @@
 /**
  * Barua ya Utambulisho Form
- * Identification Letter (Requires Mkazi Number)
+ * Identification Letter (Requires Residence Certificate Number)
  * 
  * Service: Barua ya Utambulisho
  * Fee: 5,000 TZS
  * 
  * Features:
  * - Book-style layout with sections
- * - Mkazi Number validation and reference
+ * - Residence certificate lookup and reference
  * - Progress tracking
  * - Review step before submission
  */
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { FormProps, labels } from './types';
 import { ProgressFill } from '../ui/ProgressFill';
+import { supabase } from '@/lib/supabase';
 
 // Council options - All Tanzania Halmashauri (Ward-level Councils)
 const COUNCILS = [
@@ -249,6 +250,7 @@ const PURPOSE_OPTIONS = [
 
 interface MkaziRecord {
   mkazi_number: string;
+  application_id?: string;
   full_name: string;
   registration_date: string;
   status: 'active' | 'suspended' | 'expired';
@@ -261,14 +263,17 @@ interface FormData {
   // Mkazi Reference
   mkazi_number: string;
   mkazi_verified: boolean;
+  residence_application_id?: string;
+  residence_certificate_status?: string;
+  residence_certificate_date?: string;
   
-  // Personal Information (pre-filled from Mkazi record)
+  // Personal Information (pre-filled from Residence Certificate)
   full_name: string;
   nida_number: string;
   phone: string;
   email: string;
   
-  // Residence Information (from Mkazi record)
+  // Residence Information (from Residence Certificate)
   region: string;
   district: string;
   ward: string;
@@ -290,7 +295,8 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
   onSubmit,
   isLoading,
   lang = 'sw',
-  userProfile
+  userProfile,
+  draftId
 }) => {
   const t = labels[lang];
   const [currentStep, setCurrentStep] = useState<Step>('mkazi');
@@ -304,7 +310,7 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
   const [mkaziRecord, setMkaziRecord] = useState<MkaziRecord | null>(null);
   const [verificationError, setVerificationError] = useState<string>('');
 
-  const { register, handleSubmit, setValue, formState: { errors }, trigger, getValues, watch } = useForm<FormData>();
+  const { register, handleSubmit, setValue, formState: { errors }, trigger, getValues, watch, reset } = useForm<FormData>();
 
   // Watch council field to update ward options
   const councilValue = watch('council');
@@ -313,7 +319,7 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
   }, [councilValue]);
 
   const steps: { key: Step; label: string; swLabel: string }[] = [
-    { key: 'mkazi', label: 'Mkazi Number', swLabel: 'Namba ya Mkazi' },
+    { key: 'mkazi', label: 'Residence Certificate', swLabel: 'Cheti cha Mkazi' },
     { key: 'verify', label: 'Verify Details', swLabel: 'Hakiki Taarifa' },
     { key: 'purpose', label: 'Purpose', swLabel: 'Sababu' },
     { key: 'review', label: 'Review', swLabel: 'Hakiki' },
@@ -322,10 +328,70 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
   const currentStepIndex = steps.findIndex(s => s.key === currentStep);
   const progress = ((currentStepIndex + 1) / steps.length) * 100;
 
-  // Simulate Mkazi number verification
+  React.useEffect(() => {
+    if (!draftId) return;
+
+    const draftData = localStorage.getItem(draftId);
+    if (!draftData) return;
+
+    try {
+      const draft = JSON.parse(draftData);
+      if (draft.form_data) {
+        reset(draft.form_data);
+        setMkaziNumber(draft.form_data.mkazi_number || '');
+        if (draft.form_data.mkazi_verified) {
+          setMkaziRecord({
+            mkazi_number: draft.form_data.mkazi_number,
+            application_id: draft.form_data.residence_application_id,
+            full_name: draft.form_data.full_name || '',
+            registration_date: draft.form_data.residence_certificate_date || draft.last_saved || new Date().toISOString(),
+            status: 'active',
+            ward: draft.form_data.ward || '',
+            street: draft.form_data.street || '',
+            village: draft.form_data.neighborhood || '',
+          });
+        }
+        setCurrentStep(draft.current_step === 'review' ? 'review' : draft.current_step || 'mkazi');
+      }
+    } catch (error) {
+      console.error('Error loading Barua ya Utambulisho draft:', error);
+    }
+  }, [draftId, reset]);
+
+  const saveDraft = React.useCallback(() => {
+    if (!userProfile) return;
+
+    const draftKey = draftId || `draft_${userProfile.id}_barua_ya_utambulisho`;
+    localStorage.setItem(draftKey, JSON.stringify({
+      id: draftKey,
+      user_id: userProfile.id,
+      service_name: 'Barua ya Utambulisho',
+      service_id: '2',
+      form_data: getValues(),
+      current_step: currentStep,
+      last_saved: new Date().toISOString(),
+      status: 'draft',
+    }));
+  }, [currentStep, draftId, getValues, userProfile]);
+
+  React.useEffect(() => {
+    const subscription = watch(() => {
+      const timeoutId = window.setTimeout(saveDraft, 800);
+      return () => window.clearTimeout(timeoutId);
+    });
+    return () => subscription.unsubscribe();
+  }, [saveDraft, watch]);
+
+  React.useEffect(() => {
+    saveDraft();
+  }, [currentStep, saveDraft]);
+
+  // Verify Residence Certificate Number and import details from that application.
   const verifyMkaziNumber = async () => {
-    if (!mkaziNumber || mkaziNumber.length < 8) {
-      setVerificationError(lang === 'sw' ? 'Ingiza namba kamili ya Mkazi' : 'Enter complete Mkazi number');
+    const certificateNumber = mkaziNumber.trim().toUpperCase();
+
+    if (!certificateNumber || certificateNumber.length < 8) {
+      setVerificationError(lang === 'sw' ? 'Ingiza namba kamili ya Cheti cha Mkazi' : 'Enter the full Residence Certificate number');
       return;
     }
 
@@ -334,52 +400,87 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
     setMkaziRecord(null);
 
     try {
-      // Simulate API call - in production, this would call your backend
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Mock response - replace with actual API call
-      const mockRecord: MkaziRecord = {
-        mkazi_number: mkaziNumber,
-        full_name: userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : 'John Doe',
-        registration_date: '2024-01-15',
-        status: 'active',
-        ward: 'Kariakoo',
-        street: 'Mtaa wa Uhuru',
-        village: userProfile?.ward || 'Kariakoo'
-      };
+      const { data, error } = await supabase
+        .from('applications')
+        .select('id, user_id, service_name, application_number, form_data, status, created_at')
+        .eq('application_number', certificateNumber)
+        .eq('user_id', userProfile?.id || '')
+        .maybeSingle();
 
-      // Check if status is active
-      if (mockRecord.status !== 'active') {
+      if (error) throw error;
+
+      if (!data) {
         setVerificationError(
-          lang === 'sw' 
-            ? 'Namba ya Mkazi haitumiki. Tafadhali wasiliana na ofisi ya mtaa.' 
-            : 'Mkazi number is not active. Please contact the ward office.'
+          lang === 'sw'
+            ? 'Cheti cha Mkazi hakijapatikana kwa namba hii.'
+            : 'No Residence Certificate was found with this number.'
         );
         return;
       }
 
-      setMkaziRecord(mockRecord);
+      const isResidenceCertificate =
+        String(data.service_name || '').toLowerCase().includes('mkazi') ||
+        String(data.form_data?.document_type || '').toLowerCase().includes('mkazi');
+
+      if (!isResidenceCertificate) {
+        setVerificationError(
+          lang === 'sw'
+            ? 'Namba hii si ya Cheti cha Mkazi.'
+            : 'This number is not for a Residence Certificate.'
+        );
+        return;
+      }
+
+      // Check if status is active
+      if (!['approved', 'issued', 'paid', 'pending_payment'].includes(data.status)) {
+        setVerificationError(
+          lang === 'sw' 
+            ? 'Cheti hiki bado hakijakamilika au hakitumiki kwa Barua ya Utambulisho.' 
+            : 'This certificate is not complete or cannot be used for an Introduction Letter yet.'
+        );
+        return;
+      }
+
+      const certificateData = data.form_data || {};
+      const fullName = certificateData.full_name || [userProfile?.first_name, userProfile?.middle_name, userProfile?.last_name].filter(Boolean).join(' ');
+      const record: MkaziRecord = {
+        mkazi_number: certificateNumber,
+        application_id: data.id,
+        full_name: fullName,
+        registration_date: data.created_at,
+        status: 'active',
+        ward: certificateData.ward || userProfile?.ward || '',
+        street: certificateData.street || userProfile?.street || '',
+        village: certificateData.neighborhood || '',
+      };
+
+      setMkaziRecord(record);
       
-      // Auto-fill form fields from Mkazi record
-      setValue('mkazi_number', mkaziNumber);
+      // Auto-fill form fields from the Residence Certificate.
+      setValue('mkazi_number', certificateNumber);
       setValue('mkazi_verified', true);
-      setValue('full_name', mockRecord.full_name);
-      setValue('ward', mockRecord.ward);
-      setValue('street', mockRecord.street);
+      setValue('full_name', record.full_name);
+      setValue('ward', record.ward);
+      setValue('street', record.street);
+      setValue('house_number', certificateData.house_number || '');
+      setValue('neighborhood', certificateData.neighborhood || '');
+      setValue('region', certificateData.region || userProfile?.region || '');
+      setValue('district', certificateData.district || userProfile?.district || '');
+      setValue('residence_application_id', data.id);
+      setValue('residence_certificate_status', data.status);
+      setValue('residence_certificate_date', data.created_at);
       
       if (userProfile) {
         setValue('nida_number', userProfile.nida_number || '');
         setValue('phone', userProfile.phone || '');
         setValue('email', userProfile.email || '');
-        setValue('region', userProfile.region || '');
-        setValue('district', userProfile.district || '');
       }
 
     } catch (err) {
       setVerificationError(
         lang === 'sw' 
-          ? 'Hitilafu katika kuthibitisha namba. Jaribu tena.' 
-          : 'Error verifying number. Please try again.'
+          ? 'Hitilafu katika kuthibitisha cheti. Jaribu tena.' 
+          : 'Error verifying the certificate. Please try again.'
       );
     } finally {
       setVerifying(false);
@@ -432,7 +533,7 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
   const confirmSubmit = async () => {
     if (!mkaziRecord) return;
     const submitData = formData ?? getValues();
-    await Promise.resolve(onSubmit(submitData));
+    await Promise.resolve(onSubmit(submitData, [], 'self'));
   };
 
   const inputClass = "w-full p-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all bg-white";
@@ -492,8 +593,8 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
               </h3>
               <p className="text-sm text-amber-700">
                 {lang === 'sw' 
-                  ? 'Tafadhali hakiki taarifa zako kabla ya kuwasilisha. Barua ya utambulisho itatolewa kwa kutumia namba yako ya Mkazi.'
-                  : 'Please review your information before submitting. The identification letter will be issued using your Mkazi number.'}
+                  ? 'Tafadhali hakiki taarifa zako kabla ya kuwasilisha. Barua ya utambulisho itatolewa kwa kutumia namba ya Cheti cha Mkazi.'
+                  : 'Please review your information before submitting. The introduction letter will be issued using your Residence Certificate number.'}
               </p>
             </div>
           </div>
@@ -505,7 +606,7 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
             <div className="bg-emerald-50 px-4 py-2 border-b border-emerald-100">
               <h4 className="font-bold text-emerald-800 flex items-center gap-2">
                 <FileText className="h-4 w-4" />
-                {lang === 'sw' ? 'Namba ya Mkazi' : 'Mkazi Number'}
+                {lang === 'sw' ? 'Namba ya Cheti cha Mkazi' : 'Residence Certificate Number'}
               </h4>
             </div>
             <div className="p-4">
@@ -671,7 +772,7 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
     );
   };
 
-  if (showReview) {
+  if (showReview || currentStep === 'review') {
     return (
       <form className="space-y-6">
         <ReviewSection />
@@ -683,13 +784,13 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
     <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
       <ProgressBar />
 
-      {/* Step 1: Mkazi Number Entry */}
+      {/* Step 1: Residence Certificate Number Entry */}
       {currentStep === 'mkazi' && (
         <div className="space-y-6">
           <div className={sectionClass}>
             <h3 className="font-bold text-emerald-800 flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              {lang === 'sw' ? 'INGIZA NAMBA YAKO MKAZI' : 'ENTER YOUR MKAZI NUMBER'}
+              {lang === 'sw' ? 'INGIZA NAMBA YA CHETI CHA MKAZI' : 'ENTER YOUR RESIDENCE CERTIFICATE NUMBER'}
             </h3>
           </div>
 
@@ -698,15 +799,15 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
               <AlertCircle className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
               <p className="text-sm text-blue-700">
                 {lang === 'sw' 
-                  ? 'Ili kupata Barua ya Utambulisho, unahitaji kuwa na Namba ya Mkazi. Namba hii unayopata baada ya kujisajili kama mkazi wa eneo husika.'
-                  : 'To get an Identification Letter, you need to have a Mkazi Number. This number is obtained after registering as a resident of the area.'}
+                  ? 'Ili kupata Barua ya Utambulisho, ni lazima uwe na namba ya Cheti cha Mkazi. Tutaitumia kuleta taarifa zako za makazi ili usijaze kila kitu upya.'
+                  : 'To get an Introduction Letter, you must have a Residence Certificate number. We use it to fetch your residence details so you do not refill everything.'}
               </p>
             </div>
           </div>
 
           <div>
             <label className={labelClass}>
-              {lang === 'sw' ? 'Namba ya Mkazi' : 'Mkazi Number'} <span className="text-red-500">*</span>
+              {lang === 'sw' ? 'Namba ya Cheti cha Mkazi' : 'Residence Certificate Number'} <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
               <div className="relative flex-1">
@@ -715,7 +816,7 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
                   type="text"
                   value={mkaziNumber}
                   onChange={(e) => setMkaziNumber(e.target.value.toUpperCase())}
-                  placeholder="MKAZI2025A12345"
+                  placeholder="TZ-CHE-20260509-1234"
                   className="w-full p-3 pl-10 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-mono uppercase tracking-wider"
                 />
               </div>
@@ -743,7 +844,7 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
               <div className="flex items-center gap-2 mb-4">
                 <CheckCircle className="h-6 w-6 text-emerald-600" />
                 <span className="font-bold text-emerald-700 text-lg">
-                  {lang === 'sw' ? 'Namba Imethibitishwa!' : 'Number Verified!'}
+                  {lang === 'sw' ? 'Cheti Kimethibitishwa!' : 'Certificate Verified!'}
                 </span>
               </div>
               
@@ -803,7 +904,7 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
             <p className="text-sm text-emerald-700">
               {lang === 'sw' 
                 ? 'Taarifa zilizo hapa chini zimechukuliwa kutoka kwenye rekodi yako ya Mkazi na wasifu wako. Hakikisha zina usahihi.'
-                : 'The information below is taken from your Mkazi record and profile. Ensure it is correct.'}
+                : 'The information below is taken from your Residence Certificate and profile. Ensure it is correct.'}
             </p>
           </div>
 
@@ -1026,39 +1127,25 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
           </button>
         )}
         
-        {currentStep !== 'review' ? (
-          <button
-            type="button"
-            onClick={handleNext}
-            className={`flex-1 py-3 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 ${
-              currentStepIndex === 0 ? 'w-full' : ''
-            }`}
-          >
-            {currentStep === 'purpose' ? (
-              <>
-                {lang === 'sw' ? 'Hakiki Maombi' : 'Review Application'}
-                <Eye className="h-5 w-5" />
-              </>
-            ) : (
-              <>
-                {lang === 'sw' ? 'Endelea' : 'Continue'}
-                <ArrowRight className="h-5 w-5" />
-              </>
-            )}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              setFormData(getValues());
-              setShowReview(true);
-            }}
-            className="flex-1 py-3 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
-          >
-            <FileCheck className="h-5 w-5" />
-            {lang === 'sw' ? 'Malizia na Hakiki' : 'Finish & Review'}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={handleNext}
+          className={`flex-1 py-3 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 ${
+            currentStepIndex === 0 ? 'w-full' : ''
+          }`}
+        >
+          {currentStep === 'purpose' ? (
+            <>
+              {lang === 'sw' ? 'Hakiki Maombi' : 'Review Application'}
+              <Eye className="h-5 w-5" />
+            </>
+          ) : (
+            <>
+              {lang === 'sw' ? 'Endelea' : 'Continue'}
+              <ArrowRight className="h-5 w-5" />
+            </>
+          )}
+        </button>
       </div>
     </form>
   );

@@ -2,18 +2,21 @@ import React from 'react';
 
 interface InfoItemProps {
   label: string;
-  value: string;
-  icon?: React.ReactNode;
+  value: string | number | null | undefined;
+  className?: string;
 }
 
-export function InfoItem({ label, value, icon }: InfoItemProps) {
+export function InfoItem({ label, value, className }: InfoItemProps) {
+  const displayValue = value ?? '—';
+
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2">
-        {icon && <span className="text-stone-400">{icon}</span>}
-        <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">{label}</p>
-      </div>
-      <p className="text-stone-800 font-medium">{value}</p>
+    <div className={className}>
+      <p className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-1">
+        {label}
+      </p>
+      <p className="text-stone-800 font-medium wrap-break-word">
+        {displayValue}
+      </p>
     </div>
   );
 }

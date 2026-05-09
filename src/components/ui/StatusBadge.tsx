@@ -1,39 +1,52 @@
 import React from 'react';
+import { cn } from '@/lib/utils';
 
 interface StatusBadgeProps {
   status: string;
-  lang: string;
+  lang?: 'sw' | 'en';
+  size?: 'sm' | 'md';
 }
 
-export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, lang }) => {
-  const getStatusConfig = () => {
-    switch (status) {
-      case 'submitted':
-        return { label: lang === 'sw' ? 'Imetumwa' : 'Submitted', className: 'bg-blue-100 text-blue-800' };
-      case 'approved':
-        return { label: lang === 'sw' ? 'Imeidhinishwa' : 'Approved', className: 'bg-green-100 text-green-800' };
-      case 'pending_payment':
-        return { label: lang === 'sw' ? 'Inasubiri Malipo' : 'Pending Payment', className: 'bg-yellow-100 text-yellow-800' };
-      case 'paid':
-        return { label: lang === 'sw' ? 'Imelipiwa' : 'Paid', className: 'bg-emerald-100 text-emerald-800' };
-      case 'processing':
-        return { label: lang === 'sw' ? 'Inashughulikiwa' : 'Processing', className: 'bg-purple-100 text-purple-800' };
-      case 'issued':
-        return { label: lang === 'sw' ? 'Imetolewa' : 'Issued', className: 'bg-teal-100 text-teal-800' };
-      case 'rejected':
-        return { label: lang === 'sw' ? 'Imekataliwa' : 'Rejected', className: 'bg-red-100 text-red-800' };
-      case 'refunded':
-        return { label: lang === 'sw' ? 'Imerejeshwa' : 'Refunded', className: 'bg-gray-100 text-gray-800' };
-      default:
-        return { label: status, className: 'bg-gray-100 text-gray-800' };
-    }
+export function StatusBadge({ 
+  status, 
+  lang = 'sw',
+  size = 'sm' 
+}: StatusBadgeProps) {
+  const baseStyles = "inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border uppercase tracking-wider";
+
+  const styles: Record<string, string> = {
+    submitted: "bg-blue-50 text-blue-700 border-blue-200",
+    pending_review: "bg-purple-50 text-purple-700 border-purple-200",
+    pending_payment: "bg-orange-50 text-orange-700 border-orange-200",
+    paid: "bg-amber-50 text-amber-700 border-amber-200",
+    verified: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    issued: "bg-emerald-600 text-white border-emerald-600",
+    rejected: "bg-red-50 text-red-700 border-red-200",
+    returned: "bg-amber-50 text-amber-700 border-amber-200",
+    processing: "bg-cyan-50 text-cyan-700 border-cyan-200",
   };
 
-  const config = getStatusConfig();
+  const labels: Record<string, { sw: string; en: string }> = {
+    submitted: { sw: "Imetumwa", en: "Submitted" },
+    pending_review: { sw: "Inasubiri Uhakiki", en: "Pending Review" },
+    pending_payment: { sw: "Inasubiri Malipo", en: "Pending Payment" },
+    paid: { sw: "Imelipiwa", en: "Paid" },
+    verified: { sw: "Imethibitishwa", en: "Verified" },
+    approved: { sw: "Imeidhinishwa", en: "Approved" },
+    issued: { sw: "Imetolewa", en: "Issued" },
+    rejected: { sw: "Imekataliwa", en: "Rejected" },
+    returned: { sw: "Imerudishwa", en: "Returned" },
+    processing: { sw: "Inashughulikiwa", en: "Processing" },
+  };
+
+  const label = labels[status]?.[lang] || status;
 
   return (
-    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${config.className}`}>
-      {config.label}
+    <span className={cn(baseStyles, styles[status] || "bg-stone-100 text-stone-600", 
+      size === 'sm' ? 'text-[10px] py-0.5' : 'text-xs py-1'
+    )}>
+      {label}
     </span>
   );
-};
+}

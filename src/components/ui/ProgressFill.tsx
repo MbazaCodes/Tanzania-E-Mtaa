@@ -1,23 +1,33 @@
-import { useLayoutEffect, useRef } from 'react';
+// src/components/ui/ProgressFill.tsx
+import React, { useLayoutEffect, useRef, memo } from 'react';
 
 interface ProgressFillProps {
   progress: number;
   className?: string;
+  transitionDuration?: number;
 }
 
-/**
- * Renders a progress bar fill div whose width is set imperatively via a ref,
- * avoiding the need for a `style` prop on the JSX element.
- * This is required because Tailwind JIT cannot generate dynamic `w-[X%]` classes at build time.
- */
-export function ProgressFill({ progress, className = '' }: ProgressFillProps) {
-  const ref = useRef<HTMLDivElement>(null);
+export const ProgressFill = memo(function ProgressFill({
+  progress,
+  className = '',
+  transitionDuration = 300,
+}: ProgressFillProps) {
+  const fillRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    if (ref.current) {
-      ref.current.style.width = `${progress}%`;
-    }
-  }, [progress]);
+    const element = fillRef.current;
+    if (!element) return;
 
-  return <div ref={ref} className={className} />;
-}
+    const safeProgress = Math.max(0, Math.min(100, progress));
+
+    element.style.transition = `width ${transitionDuration}ms cubic-bezier(0.4, 0, 0.2, 1)`;
+    element.style.width = `${safeProgress}%`;
+  }, [progress, transitionDuration]);
+
+  return (
+    <div
+      ref={fillRef}
+      className={`will-change-[width] ${className}`.trim()}
+    />
+  );
+});

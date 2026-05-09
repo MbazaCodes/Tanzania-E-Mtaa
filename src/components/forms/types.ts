@@ -1,49 +1,53 @@
+/**
+ * Shared Types for Service Forms
+ */
 import { UserProfile } from '@/lib/supabase';
 
-export type FormLanguage = 'sw' | 'en';
-
 export interface FormProps {
-  onSubmit: (data: any, files?: File[], signature?: string) => Promise<void> | void;
-  isLoading?: boolean;
-  lang?: FormLanguage;
+  onSubmit: (data: any, attachments?: string[], applicantType?: string, representativeName?: string) => void | Promise<void>;
+  lang?: 'sw' | 'en';
   userProfile?: UserProfile | null;
+  isLoading?: boolean;
   draftId?: string;
 }
 
+export type ApplicantType = 'self' | 'minor' | 'representative';
+
 export const labels = {
   sw: {
-    submit: 'Wasilisha',
+    submit: 'Wasilisha Maombi',
     submitting: 'Inawasilisha...',
     next: 'Endelea',
-    back: 'Nyuma',
-    required: 'Sehemu inahitajika',
-    optional: 'Hiari',
+    back: 'Rudi',
+    required: 'Inahitajika',
+    optional: 'Si lazima',
     yes: 'Ndiyo',
     no: 'Hapana',
     select: 'Chagua',
     selectOption: 'Chagua chaguo',
     loading: 'Inapakia...',
-    error: 'Hitilafu',
+    error: 'Kosa',
     success: 'Imefanikiwa',
     cancel: 'Ghairi',
-    confirm: 'Thibitisha',
     save: 'Hifadhi',
-    delete: 'Futa',
-    edit: 'Hariri',
-    view: 'Tazama',
-    search: 'Tafuta',
-    filter: 'Chuja',
-    clear: 'Futa',
-    close: 'Funga',
-    open: 'Fungua',
-    fee: 'Ada'
+    review: 'Hakiki',
+    confirm: 'Thibitisha',
+    step: 'Hatua',
+    of: 'kati ya',
+    personalInfo: 'Taarifa Binafsi',
+    contactInfo: 'Mawasiliano',
+    addressInfo: 'Anwani',
+    documents: 'Nyaraka',
+    declaration: 'Tamko',
+    terms: 'Masharti',
+    fee: 'Ada ya Huduma',
   },
   en: {
-    submit: 'Submit',
+    submit: 'Submit Application',
     submitting: 'Submitting...',
-    next: 'Next',
+    next: 'Continue',
     back: 'Back',
-    required: 'Required field',
+    required: 'Required',
     optional: 'Optional',
     yes: 'Yes',
     no: 'No',
@@ -53,16 +57,17 @@ export const labels = {
     error: 'Error',
     success: 'Success',
     cancel: 'Cancel',
-    confirm: 'Confirm',
     save: 'Save',
-    delete: 'Delete',
-    edit: 'Edit',
-    view: 'View',
-    search: 'Search',
-    filter: 'Filter',
-    clear: 'Clear',
-    close: 'Close',
-    open: 'Open',
-    fee: 'Fee'
+    review: 'Review',
+    confirm: 'Confirm',
+    step: 'Step',
+    of: 'of',
+    personalInfo: 'Personal Information',
+    contactInfo: 'Contact Information',
+    addressInfo: 'Address',
+    documents: 'Documents',
+    declaration: 'Declaration',
+    terms: 'Terms',
+    fee: 'Service Fee',
   }
-};
+} as const;

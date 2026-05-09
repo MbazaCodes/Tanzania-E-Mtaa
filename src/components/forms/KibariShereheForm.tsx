@@ -426,7 +426,7 @@ export const KibariShereheForm: React.FC<FormProps> = ({
     );
   };
 
-  if (showReview) {
+  if (showReview || currentStep === 'review') {
     return (
       <form className="space-y-6">
         <ReviewSection />
@@ -514,7 +514,9 @@ export const KibariShereheForm: React.FC<FormProps> = ({
                   type="date" 
                   {...register('start_date', { 
                     required: true,
-                    validate: value => new Date(value) >= new Date(new Date().setHours(0,0,0,0)) || lang === 'sw' ? 'Tarehe lazima iwe ya leo au baadaye' : 'Date must be today or later'
+                    validate: value =>
+                      new Date(value) >= new Date(new Date().setHours(0, 0, 0, 0)) ||
+                      (lang === 'sw' ? 'Tarehe lazima iwe ya leo au baadaye' : 'Date must be today or later')
                   })} 
                   className={`${inputClass} pl-10`}
                   min={new Date().toISOString().split('T')[0]}
@@ -786,36 +788,25 @@ export const KibariShereheForm: React.FC<FormProps> = ({
           </button>
         )}
         
-        {currentStep !== 'review' ? (
-          <button
-            type="button"
-            onClick={handleNext}
-            className={`flex-1 py-3 bg-linear-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 ${
-              currentStepIndex === 0 ? 'w-full' : ''
-            }`}
-          >
-            {currentStep === 'contact' ? (
-              <>
-                {lang === 'sw' ? 'Hakiki Tukio' : 'Review Event'}
-                <Eye className="h-5 w-5" />
-              </>
-            ) : (
-              <>
-                {lang === 'sw' ? 'Endelea' : 'Continue'}
-                <ArrowRight className="h-5 w-5" />
-              </>
-            )}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowReview(true)}
-            className="flex-1 py-3 bg-linear-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
-          >
-            <FileCheck className="h-5 w-5" />
-            {lang === 'sw' ? 'Malizia na Hakiki' : 'Finish & Review'}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={handleNext}
+          className={`flex-1 py-3 bg-linear-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 ${
+            currentStepIndex === 0 ? 'w-full' : ''
+          }`}
+        >
+          {currentStep === 'contact' ? (
+            <>
+              {lang === 'sw' ? 'Hakiki Tukio' : 'Review Event'}
+              <Eye className="h-5 w-5" />
+            </>
+          ) : (
+            <>
+              {lang === 'sw' ? 'Endelea' : 'Continue'}
+              <ArrowRight className="h-5 w-5" />
+            </>
+          )}
+        </button>
       </div>
     </form>
   );

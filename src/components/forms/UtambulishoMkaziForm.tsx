@@ -1,8 +1,8 @@
 /**
- * Utambulisho wa Mkazi (Barua ya Utambulisho) Form
- * Residency Certificate / Identification Letter
+ * Cheti cha Mkazi form
+ * Residency Certificate
  * 
- * Service: Utambulisho wa Mkazi - Kujitambulisha Mkazi
+ * Service: Cheti cha Mkazi
  * Fee: 5,000 TZS
  */
 import React, { useState, useRef } from 'react';
@@ -11,10 +11,11 @@ import {
   Loader2, CheckCircle, ArrowLeft, ArrowRight, Eye, FileCheck, 
   User, MapPin, Phone, Mail, Calendar, Users, Heart, Briefcase,
   FileText, Download, Printer, Home, Zap, Droplet, Globe, AlertCircle,
-  Shield, Info, CreditCard, CheckSquare
+  Shield, Info, CreditCard, CheckSquare, Upload, X
 } from 'lucide-react';
 import { FormProps, labels } from './types';
 import { ProgressFill } from '../ui/ProgressFill';
+import { supabase } from '@/lib/supabase';
 
 const COUNCILS = [
   { label: 'SERIKALI YA MTAA - ARUSHA', value: 'ARUSHA_MTAA' },
@@ -288,9 +289,14 @@ interface FormData {
   institution_name: string;
   terms_accepted: boolean;
   data_confirmed: boolean;
+  // Documents
+  photo_url: string;
+  id_type: string;
+  id_document_url: string;
+  extra_document_url: string;
 }
 
-type Step = 'council' | 'personal' | 'residence' | 'sensitive' | 'family' | 'status' | 'review';
+type Step = 'council' | 'personal' | 'residence' | 'sensitive' | 'family' | 'status' | 'documents' | 'review';
 
 export const UtambulishoMkaziForm: React.FC<FormProps> = ({
   onSubmit,
@@ -301,14 +307,19 @@ export const UtambulishoMkaziForm: React.FC<FormProps> = ({
 }) => {
   const t = labels[lang];
   const [currentStep, setCurrentStep] = useState<Step>('council');
-  const [showReview, setShowReview] = useState(false);
   const [showPdfPreview, setShowPdfPreview] = useState(false);
   const [formData, setFormData] = useState<FormData | null>(null);
   const [isDraftLoaded, setIsDraftLoaded] = useState(false);
   const [selectedCouncil, setSelectedCouncil] = useState<string>('');
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Document upload state
+  const [photoPreview, setPhotoPreview] = useState<string>('');
+  const [idDocPreview, setIdDocPreview] = useState<string>('');
+  const [extraDocPreview, setExtraDocPreview] = useState<string>('');
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
   
-  const { register, handleSubmit, formState: { errors }, trigger, getValues, reset, watch } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, trigger, getValues, reset, watch, setValue } = useForm<FormData>({
     defaultValues: {
       purpose: PURPOSE_VALUE,
       institution_name: INSTITUTION_VALUE,
@@ -331,13 +342,13 @@ export const UtambulishoMkaziForm: React.FC<FormProps> = ({
     if (!userProfile || isDraftLoaded) return;
 
     const currentData = getValues();
-    const draftKey = draftId || `draft_${userProfile.id}_utambulisho_mkazi`;
+    const draftKey = draftId || `draft_${userProfile.id}_cheti_cha_mkazi`;
     
     const draft = {
       id: draftKey,
       user_id: userProfile.id,
-      service_name: 'Utambulisho wa Mkazi',
-      service_id: 'utambulisho_mkazi',
+      service_name: 'Cheti cha Mkazi',
+      service_id: 'residency_certificate',
       form_data: currentData,
       current_step: currentStep,
       last_saved: new Date().toISOString(),
@@ -435,6 +446,7 @@ export const UtambulishoMkaziForm: React.FC<FormProps> = ({
     { key: 'sensitive', label: 'Utilities', swLabel: 'Huduma' },
     { key: 'family', label: 'Family', swLabel: 'Familia' },
     { key: 'status', label: 'Status', swLabel: 'Hadhi' },
+    { key: 'documents', label: 'Documents', swLabel: 'Nyaraka' },
     { key: 'review', label: 'Review', swLabel: 'Hakiki' },
   ];
 
@@ -463,6 +475,10 @@ export const UtambulishoMkaziForm: React.FC<FormProps> = ({
       case 'status':
         fieldsToValidate = ['residency_status', 'ownership_status'];
         break;
+      case 'documents':
+        // Photo is optional (user may already have one on profile); ID doc required
+        fieldsToValidate = ['id_type'];
+        break;
       default:
         return true;
     }
@@ -475,7 +491,7 @@ export const UtambulishoMkaziForm: React.FC<FormProps> = ({
     const isValid = await validateCurrentStep();
     if (!isValid) return;
 
-    if (currentStep === 'status') {
+    if (currentStep === 'documents') {
       setCurrentStep('review');
     } else {
       const nextStep = steps[currentStepIndex + 1].key;
@@ -497,17 +513,70 @@ export const UtambulishoMkaziForm: React.FC<FormProps> = ({
   const confirmSubmit = async () => {
     const submitData = formData ?? getValues();
 
-    // Clear draft on successful submission
+    await Promise.resolve(onSubmit(submitData));
+
+    // Clear draft after successful submission.
     if (userProfile) {
-      const draftKey = draftId || `draft_${userProfile.id}_utambulisho_mkazi`;
+      const draftKey = draftId || `draft_${userProfile.id}_cheti_cha_mkazi`;
       localStorage.removeItem(draftKey);
     }
-
-    await Promise.resolve(onSubmit(submitData));
   };
 
   const handlePrint = () => {
     window.print();
+  };
+
+  // File upload handler — uploads to Supabase storage and stores public URL in form
+  const handleFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    field: 'photo_url' | 'id_document_url' | 'extra_document_url',
+    setPreview: (url: string) => void,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file || !userProfile) return;
+
+    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+    const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+
+    if (file.size > MAX_SIZE) {
+      alert(lang === 'sw' ? 'Faili ni kubwa sana. Kiwango cha juu ni 10MB.' : 'File too large. Max 10MB.');
+      return;
+    }
+    if (!ALLOWED.includes(file.type)) {
+      alert(lang === 'sw' ? 'Aina ya faili hairuhusiwi. Tumia JPEG, PNG au PDF.' : 'File type not allowed. Use JPEG, PNG or PDF.');
+      return;
+    }
+
+    setUploading(prev => ({ ...prev, [field]: true }));
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${userProfile.id}/${field}_${Date.now()}.${ext}`;
+      const { error } = await supabase.storage
+        .from('user-documents')
+        .upload(path, file, { upsert: true });
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('user-documents')
+        .getPublicUrl(path);
+
+      // Show local preview for images
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = ev => setPreview(ev.target?.result as string);
+        reader.readAsDataURL(file);
+      } else {
+        setPreview(file.name);
+      }
+
+      // Store URL in form via react-hook-form
+      setValue(field, publicUrl, { shouldDirty: true });
+    } catch (err) {
+      console.error('Upload error:', err);
+      alert(lang === 'sw' ? 'Imeshindwa kupakia faili.' : 'Failed to upload file.');
+    } finally {
+      setUploading(prev => ({ ...prev, [field]: false }));
+    }
   };
 
   const inputClass = "w-full p-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all bg-white";
@@ -584,7 +653,7 @@ export const UtambulishoMkaziForm: React.FC<FormProps> = ({
               JAMHURI YA MUUNGANO WA TANZANIA
             </h1>
             <h2 className="text-xl font-semibold text-stone-700 mt-2">
-              BARUA YA UTAMBULISHO WA MKAZI
+              CHETI CHA MKAZI
             </h2>
             <h2 className="text-lg text-stone-600">
               RESIDENCY IDENTIFICATION LETTER
@@ -992,10 +1061,260 @@ export const UtambulishoMkaziForm: React.FC<FormProps> = ({
     );
   }
 
-  if (showReview) {
+  if (currentStep === 'review') {
     return (
       <form className="space-y-6">
         <ReviewSection />
+      </form>
+    );
+  }
+
+  // ─── ID TYPES ───────────────────────────────────────────────────────────────
+  const ID_TYPES = [
+    { value: 'NIDA', label: lang === 'sw' ? 'Kitambulisho cha NIDA' : 'NIDA Card' },
+    { value: 'PASSPORT', label: lang === 'sw' ? 'Pasipoti' : 'Passport' },
+    { value: 'DRIVING_LICENSE', label: lang === 'sw' ? 'Leseni ya Udereva' : "Driver's License" },
+    { value: 'VOTER_ID', label: lang === 'sw' ? 'Kitambulisho cha Mpiga Kura' : "Voter's Card" },
+    { value: 'ZANZIBAR_ID', label: lang === 'sw' ? 'Kitambulisho cha Zanzibar' : 'Zanzibar ID' },
+  ];
+
+  if (currentStep === 'documents') {
+    return (
+      <form className="space-y-6" onSubmit={e => e.preventDefault()}>
+        <ProgressBar />
+
+        {/* Section header */}
+        <div className={sectionClass}>
+          <h3 className="font-bold text-emerald-800 flex items-center gap-2 text-lg">
+            <Shield className="h-5 w-5" />
+            {lang === 'sw' ? 'PAKIA NYARAKA ZA UTAMBULISHO' : 'UPLOAD IDENTITY DOCUMENTS'}
+          </h3>
+          <p className="text-sm text-emerald-700 mt-1">
+            {lang === 'sw'
+              ? 'Pakia picha yako ya pasipoti na kitambulisho chako rasmi. Nyaraka hizi zitawekwa kwenye hati itakayotolewa.'
+              : 'Upload your passport photo and official ID. These documents will be placed on the issued certificate.'}
+          </p>
+        </div>
+
+        {/* Hidden fields so react-hook-form registers them */}
+        <input type="hidden" {...register('photo_url')} />
+        <input type="hidden" {...register('id_document_url')} />
+        <input type="hidden" {...register('extra_document_url')} />
+
+        {/* ── PASSPORT PHOTO ─────────────────────────────────────── */}
+        <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-sm">
+          <h4 className="font-bold text-stone-800 mb-1 flex items-center gap-2">
+            <User className="h-4 w-4 text-emerald-600" />
+            {lang === 'sw' ? 'Picha ya Pasipoti' : 'Passport Photo'}
+            <span className="text-xs font-normal text-stone-400 ml-1">({lang === 'sw' ? 'Hiari' : 'Optional'})</span>
+          </h4>
+          <p className="text-xs text-stone-500 mb-4">
+            {lang === 'sw'
+              ? 'Picha hii itaonekana kwenye hati yako. Tumia picha wazi ya usoni (background nyeupe au bluu).'
+              : 'This photo will appear on your certificate. Use a clear face photo (white or blue background).'}
+          </p>
+
+          <div className="flex items-start gap-4">
+            {/* Preview box */}
+            <div className="w-24 h-28 border-2 border-dashed border-stone-300 rounded-xl bg-stone-50 flex items-center justify-center overflow-hidden shrink-0">
+              {photoPreview ? (
+                <img src={photoPreview} alt="preview" className="w-full h-full object-cover rounded-xl" />
+              ) : userProfile?.photo_url ? (
+                <img src={userProfile.photo_url} alt="profile" className="w-full h-full object-cover rounded-xl" />
+              ) : (
+                <div className="text-center text-stone-300">
+                  <User className="h-10 w-10 mx-auto" />
+                  <span className="text-xs">{lang === 'sw' ? 'Picha' : 'Photo'}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Upload button */}
+            <div className="flex-1">
+              <label className="block cursor-pointer">
+                <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all
+                  ${uploading['photo_url'] ? 'bg-stone-100 text-stone-400 cursor-not-allowed' : 'bg-emerald-50 border border-emerald-300 text-emerald-700 hover:bg-emerald-100'}`}>
+                  {uploading['photo_url']
+                    ? <><Loader2 className="h-4 w-4 animate-spin" /> {lang === 'sw' ? 'Inapakia...' : 'Uploading...'}</>
+                    : <><Upload className="h-4 w-4" /> {lang === 'sw' ? 'Chagua Picha' : 'Choose Photo'}</>}
+                </div>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  disabled={uploading['photo_url']}
+                  onChange={e => void handleFileUpload(e, 'photo_url', setPhotoPreview)}
+                />
+              </label>
+              {photoPreview && (
+                <button
+                  type="button"
+                  onClick={() => { setPhotoPreview(''); setValue('photo_url', ''); }}
+                  className="mt-2 text-xs text-red-500 hover:underline flex items-center gap-1"
+                >
+                  <X className="h-3 w-3" /> {lang === 'sw' ? 'Ondoa' : 'Remove'}
+                </button>
+              )}
+              <p className="text-xs text-stone-400 mt-2">JPEG · PNG · WebP · {lang === 'sw' ? 'Hadi' : 'Max'} 10 MB</p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── IDENTITY DOCUMENT ──────────────────────────────────── */}
+        <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-sm">
+          <h4 className="font-bold text-stone-800 mb-1 flex items-center gap-2">
+            <FileText className="h-4 w-4 text-emerald-600" />
+            {lang === 'sw' ? 'Kitambulisho Rasmi' : 'Official ID Document'}
+            <span className="text-red-500 ml-1 text-sm">*</span>
+          </h4>
+          <p className="text-xs text-stone-500 mb-4">
+            {lang === 'sw'
+              ? 'Pakia picha au scan ya wazi ya kitambulisho chako.'
+              : 'Upload a clear photo or scan of your ID document.'}
+          </p>
+
+          {/* ID type selector */}
+          <div className="mb-4">
+            <label className={labelClass}>
+              {lang === 'sw' ? 'Aina ya Kitambulisho' : 'ID Type'} <span className="text-red-500">*</span>
+            </label>
+            <select
+              {...register('id_type', { required: true })}
+              className={inputClass}
+            >
+              <option value="">{lang === 'sw' ? '-- Chagua aina --' : '-- Select type --'}</option>
+              {ID_TYPES.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            {errors.id_type && <span className="text-red-500 text-xs mt-1 block">{t.required}</span>}
+          </div>
+
+          {/* ID document upload */}
+          <label className="block cursor-pointer">
+            <div className={`border-2 border-dashed rounded-xl p-5 flex flex-col items-center gap-2 transition-all
+              ${uploading['id_document_url'] ? 'border-stone-200 bg-stone-50 cursor-not-allowed' : 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100 cursor-pointer'}`}>
+              {uploading['id_document_url'] ? (
+                <><Loader2 className="h-8 w-8 text-emerald-500 animate-spin" />
+                <span className="text-sm text-stone-500">{lang === 'sw' ? 'Inapakia...' : 'Uploading...'}</span></>
+              ) : idDocPreview ? (
+                <>
+                  {idDocPreview.startsWith('data:') ? (
+                    <img src={idDocPreview} alt="ID doc" className="max-h-36 rounded-lg object-contain" />
+                  ) : (
+                    <div className="flex items-center gap-2 text-emerald-700">
+                      <FileText className="h-6 w-6" />
+                      <span className="text-sm font-medium">{idDocPreview}</span>
+                    </div>
+                  )}
+                  <span className="text-xs text-emerald-600 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> {lang === 'sw' ? 'Imepakiwa' : 'Uploaded'}</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="h-8 w-8 text-emerald-400" />
+                  <span className="text-sm font-medium text-emerald-700">
+                    {lang === 'sw' ? 'Bonyeza kupakia kitambulisho' : 'Click to upload ID document'}
+                  </span>
+                  <span className="text-xs text-stone-400">JPEG · PNG · PDF · {lang === 'sw' ? 'Hadi' : 'Max'} 10 MB</span>
+                </>
+              )}
+            </div>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              className="hidden"
+              disabled={uploading['id_document_url']}
+              onChange={e => void handleFileUpload(e, 'id_document_url', setIdDocPreview)}
+            />
+          </label>
+          {idDocPreview && (
+            <button
+              type="button"
+              onClick={() => { setIdDocPreview(''); setValue('id_document_url', ''); }}
+              className="mt-2 text-xs text-red-500 hover:underline flex items-center gap-1"
+            >
+              <X className="h-3 w-3" /> {lang === 'sw' ? 'Ondoa' : 'Remove'}
+            </button>
+          )}
+        </div>
+
+        {/* ── EXTRA / SUPPORTING DOCUMENT ────────────────────────── */}
+        <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-sm">
+          <h4 className="font-bold text-stone-800 mb-1 flex items-center gap-2">
+            <FileCheck className="h-4 w-4 text-emerald-600" />
+            {lang === 'sw' ? 'Nyaraka ya Ziada (Hiari)' : 'Supporting Document (Optional)'}
+          </h4>
+          <p className="text-xs text-stone-500 mb-4">
+            {lang === 'sw'
+              ? 'Kama una nyaraka nyingine inayosaidia (bili ya umeme, maji, nk.) pakia hapa.'
+              : 'If you have a supporting document (electricity bill, water bill, etc.) upload it here.'}
+          </p>
+
+          <label className="block cursor-pointer">
+            <div className={`border-2 border-dashed rounded-xl p-5 flex flex-col items-center gap-2 transition-all
+              ${uploading['extra_document_url'] ? 'border-stone-200 bg-stone-50 cursor-not-allowed' : 'border-stone-300 bg-stone-50 hover:bg-stone-100'}`}>
+              {uploading['extra_document_url'] ? (
+                <><Loader2 className="h-8 w-8 text-stone-400 animate-spin" />
+                <span className="text-sm text-stone-400">{lang === 'sw' ? 'Inapakia...' : 'Uploading...'}</span></>
+              ) : extraDocPreview ? (
+                <>
+                  {extraDocPreview.startsWith('data:') ? (
+                    <img src={extraDocPreview} alt="extra doc" className="max-h-28 rounded-lg object-contain" />
+                  ) : (
+                    <div className="flex items-center gap-2 text-stone-600">
+                      <FileText className="h-6 w-6" />
+                      <span className="text-sm font-medium">{extraDocPreview}</span>
+                    </div>
+                  )}
+                  <span className="text-xs text-emerald-600 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> {lang === 'sw' ? 'Imepakiwa' : 'Uploaded'}</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="h-8 w-8 text-stone-300" />
+                  <span className="text-sm text-stone-500">{lang === 'sw' ? 'Bonyeza kupakia nyaraka ya ziada' : 'Click to upload supporting document'}</span>
+                  <span className="text-xs text-stone-400">JPEG · PNG · PDF · {lang === 'sw' ? 'Hadi' : 'Max'} 10 MB</span>
+                </>
+              )}
+            </div>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              className="hidden"
+              disabled={uploading['extra_document_url']}
+              onChange={e => void handleFileUpload(e, 'extra_document_url', setExtraDocPreview)}
+            />
+          </label>
+          {extraDocPreview && (
+            <button
+              type="button"
+              onClick={() => { setExtraDocPreview(''); setValue('extra_document_url', ''); }}
+              className="mt-2 text-xs text-red-500 hover:underline flex items-center gap-1"
+            >
+              <X className="h-3 w-3" /> {lang === 'sw' ? 'Ondoa' : 'Remove'}
+            </button>
+          )}
+        </div>
+
+        {/* Navigation */}
+        <div className="flex gap-3 pt-2">
+          <button
+            type="button"
+            onClick={handlePrevious}
+            className="flex items-center gap-2 px-6 py-3 rounded-xl border border-stone-300 text-stone-700 font-semibold hover:bg-stone-50 transition-all"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {lang === 'sw' ? 'Rudi' : 'Back'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleNext()}
+            disabled={Object.values(uploading).some(Boolean)}
+            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all disabled:opacity-50"
+          >
+            {lang === 'sw' ? 'Endelea' : 'Continue'}
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
       </form>
     );
   }

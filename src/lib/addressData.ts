@@ -1,3 +1,4 @@
+// src/lib/addressData.ts
 export interface DistrictData {
   name: string;
   wards: string[];

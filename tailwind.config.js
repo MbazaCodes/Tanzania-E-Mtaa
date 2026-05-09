@@ -4,6 +4,19 @@ module.exports = {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  safelist: [
+    'bg-primary',
+    'bg-tz-green',
+    'bg-tz-blue',
+    'text-primary',
+    'border-primary',
+    'ring-primary',
+    'bg-primary/5',
+    'bg-primary/10',
+    'ring-4',
+    'ring-primary/10',
+    'shadow-primary/30',
+  ],
   theme: {
     extend: {
       fontFamily: {

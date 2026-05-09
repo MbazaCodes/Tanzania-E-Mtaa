@@ -1,77 +1,58 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-
-type Language = 'en' | 'sw';
-type CurrencyCode = 'TZS' | 'USD' | 'EUR' | 'GBP';
+// src/context/LanguageContext.tsx
+import React, { createContext, useContext, useState, useMemo, ReactNode, useCallback } from 'react';
+import { Language, translations } from '@/lib/i18n';
+import { CurrencyCode } from '@/lib/currency';
 
 interface LanguageContextType {
   lang: Language;
   setLang: (lang: Language) => void;
-  t: (key: string) => string;
-  currency: CurrencyCode; // Change from string to CurrencyCode
+  t: (key: keyof typeof translations['sw']) => string;
+  currency: CurrencyCode;
+  setCurrency: (currency: CurrencyCode) => void;
 }
-
-const translations: Record<Language, Record<string, string>> = {
-  en: {
-    'app.name': 'E-MTAA Portal',
-    'app.tagline': 'Digital Government Services',
-    'nav.home': 'Home',
-    'nav.services': 'Services',
-    'nav.applications': 'Applications',
-    'nav.myApplications': 'My Applications',
-    'nav.profile': 'Profile',
-    'nav.dashboard': 'Dashboard',
-    'nav.logout': 'Logout',
-    'nav.login': 'Login',
-    'nav.signup': 'Sign Up',
-    // Add more translations as needed
-  },
-  sw: {
-    'app.name': 'Lango la E-MTAA',
-    'app.tagline': 'Huduma za Kiserikali za Kidijitali',
-    'nav.home': 'Nyumbani',
-    'nav.services': 'Huduma',
-    'nav.applications': 'Maombi',
-    'nav.myApplications': 'Maombi Yangu',
-    'nav.profile': 'Wasifu',
-    'nav.dashboard': 'Dashibodi',
-    'nav.logout': 'Toka',
-    'nav.login': 'Ingia',
-    'nav.signup': 'Jisajili',
-    // Add more translations as needed
-  },
-};
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [lang, setLang] = useState<Language>(() => {
-    const saved = localStorage.getItem('language') as Language;
-    return saved && (saved === 'en' || saved === 'sw') ? saved : 'en';
-  });
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const [lang, setLang] = useState<Language>('sw');
+  const [currency, setCurrency] = useState<CurrencyCode>('TZS');
 
-  useEffect(() => {
-    localStorage.setItem('language', lang);
-    document.documentElement.lang = lang;
+  // Stable translation function (prevents re-renders when lang doesn't change)
+  const t = useMemo(() => {
+    return (key: keyof typeof translations['sw']): string => {
+      return translations[lang][key] ?? key;
+    };
   }, [lang]);
 
-  const t = (key: string): string => {
-    return translations[lang][key] || key;
-  };
+  const handleSetLang = useCallback((newLang: Language) => {
+    setLang(newLang);
+    // Government services should always default to TZS
+  }, []);
 
-  // Return proper CurrencyCode type
-  const currency: CurrencyCode = 'TZS';
+  const handleSetCurrency = useCallback((newCurrency: CurrencyCode) => {
+    setCurrency(newCurrency);
+  }, []);
+
+  // Memoized context value (prevents child re-renders)
+  const contextValue = useMemo(() => ({
+    lang,
+    setLang: handleSetLang,
+    t,
+    currency,
+    setCurrency: handleSetCurrency,
+  }), [lang, t, currency, handleSetLang, handleSetCurrency]);
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t, currency }}>
+    <LanguageContext.Provider value={contextValue}>
       {children}
     </LanguageContext.Provider>
   );
-};
+}
 
-export const useLanguage = () => {
+export function useLanguage() {
   const context = useContext(LanguageContext);
   if (!context) {
-    throw new Error('useLanguage must be used within LanguageProvider');
+    throw new Error('useLanguage must be used within a LanguageProvider');
   }
   return context;
-};
+}

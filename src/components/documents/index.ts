@@ -23,14 +23,13 @@ import React from 'react';
  * IMPORTANT: These names must match exactly with HARDCODED_SERVICES in services.ts
  */
 export const SERVICE_DOCUMENTS: Record<string, React.FC<DocumentPDFProps>> = {
-  // Utambulisho wa Mkazi - Resident Identity
-  'Utambulisho wa Mkazi': UtambulishoMkaziPDF,
+  'Cheti cha Mkazi': UtambulishoMkaziPDF,
 
-  // Kibari cha Mazishi - Burial Permit
+  'Barua ya Utambulisho': UtambulishoMkaziPDF,
+
   'Kibari cha Mazishi': KibariMazishiPDF,
 
-  // Kibari cha Sherehe - Celebration Permit
-  'Kibari cha Sherehe': KibariSherehePDF,
+  'Kibali cha Tukio': KibariSherehePDF,
 };
 
 export function getServiceDocument(serviceName: string): React.FC<DocumentPDFProps> | undefined {

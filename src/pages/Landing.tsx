@@ -7,6 +7,8 @@ import {
   Globe2, 
   Users2, 
   FileCheck2, 
+  PartyPopper,
+  Skull,
   Smartphone, 
   MapPin, 
   Clock, 
@@ -22,7 +24,7 @@ interface LandingProps {
 }
 
 export function Landing({ onShowAuth, onShowVerify }: LandingProps) {
-  const { lang, t } = useLanguage();
+  const { lang } = useLanguage();
 
   return (
     <div className="min-h-screen bg-stone-50 selection:bg-emerald-100 selection:text-emerald-900">
@@ -42,11 +44,11 @@ export function Landing({ onShowAuth, onShowVerify }: LandingProps) {
             </div>
           </div>
           
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {onShowVerify && (
               <button 
                 onClick={onShowVerify}
-                className="text-xs sm:text-sm font-bold text-emerald-600 hover:text-emerald-700 transition-colors px-2 sm:px-4 py-2 flex items-center gap-1.5"
+                className="hidden sm:flex text-sm font-bold text-emerald-600 hover:text-emerald-700 transition-colors px-3 py-2 items-center gap-1.5 whitespace-nowrap"
               >
                 <Search size={16} />
                 {lang === 'sw' ? 'Hakiki Hati' : 'Verify Doc'}
@@ -54,15 +56,15 @@ export function Landing({ onShowAuth, onShowVerify }: LandingProps) {
             )}
             <button 
               onClick={() => onShowAuth('login')}
-              className="text-xs sm:text-sm font-bold text-stone-600 hover:text-stone-900 transition-colors px-2 sm:px-4 py-2"
+              className="text-xs sm:text-sm font-bold text-stone-700 hover:text-stone-900 border border-stone-300 bg-white px-3 sm:px-4 py-2 rounded-full transition-colors whitespace-nowrap"
             >
-              {t('nav.login')}
+              {lang === 'sw' ? 'Ingia' : 'Login'}
             </button>
             <button 
               onClick={() => onShowAuth('signup')}
-              className="bg-stone-900 text-white text-xs sm:text-sm font-bold px-4 sm:px-6 py-2 sm:py-2.5 rounded-full hover:bg-stone-800 transition-all shadow-lg shadow-stone-200 active:scale-95"
+              className="bg-stone-900 text-white text-xs sm:text-sm font-bold px-4 sm:px-6 py-2 sm:py-2.5 rounded-full hover:bg-stone-800 transition-all shadow-lg shadow-stone-200 active:scale-95 whitespace-nowrap"
             >
-              {t('nav.signup')}
+              {lang === 'sw' ? 'Jiunge' : 'Sign Up'}
             </button>
           </div>
         </div>
@@ -198,16 +200,17 @@ export function Landing({ onShowAuth, onShowVerify }: LandingProps) {
             </h2>
             <p className="text-stone-500 font-medium max-w-2xl mx-auto">
               {lang === 'sw' 
-                ? 'Pata huduma hizi na nyingine nyingi moja kwa moja kupitia mfumo wetu wa kidijitali.'
-                : 'Access these services and many more directly through our digital portal.'}
+                ? 'Pata huduma nne kuu za mtaa moja kwa moja kupitia mfumo wetu wa kidijitali.'
+                : 'Access the four core local government services directly through our digital portal.'}
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-8">
             {[
-              { icon: <FileCheck2 />, title: lang === 'sw' ? 'Utambulisho wa Mkazi' : 'Resident Identity', desc: lang === 'sw' ? 'Pata uthibitisho rasmi wa makazi yako kwenye mtaa wako.' : 'Proof of residence for banks, schools and passports.' },
+              { icon: <FileCheck2 />, title: lang === 'sw' ? 'Cheti cha Mkazi' : 'Residency Certificate', desc: lang === 'sw' ? 'Uthibitisho rasmi wa makazi kwa matumizi ya benki, shule na huduma za serikali.' : 'Official proof of residence for banks, schools, and government services.' },
               { icon: <Users2 />, title: lang === 'sw' ? 'Barua ya Utambulisho' : 'Introduction Letter', desc: lang === 'sw' ? 'Barua rasmi ya utambulisho kwa taasisi mbalimbali.' : 'Official introduction letter for various institutions.' },
-              { icon: <Globe2 />, title: lang === 'sw' ? 'Huduma za Diaspora' : 'Diaspora Services', desc: lang === 'sw' ? 'Huduma maalum kwa Watanzania waishio nje ya nchi.' : 'Special services for Tanzanians living abroad.' }
+              { icon: <PartyPopper />, title: lang === 'sw' ? 'Kibali cha Tukio' : 'Event Permit', desc: lang === 'sw' ? 'Kibali cha matukio ya jamii, sherehe na mikusanyiko maalum.' : 'Permit for community events, celebrations, and special gatherings.' },
+              { icon: <Skull />, title: lang === 'sw' ? 'Kibali cha Mazishi' : 'Burial Permit', desc: lang === 'sw' ? 'Kibali rasmi cha mazishi kwa uratibu wa familia na serikali ya mtaa.' : 'Official burial permit for family and local government coordination.' }
             ].map((service, i) => (
             <motion.div 
               key={i}

@@ -6,6 +6,49 @@ const getServiceById = (serviceId: string) => {
   return HARDCODED_SERVICES.find(s => s.id === serviceId) || null;
 };
 
+const getServiceByName = (serviceName?: string | null) => {
+  if (!serviceName) return null;
+
+  const normalizedName = serviceName.trim().toLowerCase();
+  return HARDCODED_SERVICES.find((service) =>
+    service.name.trim().toLowerCase() === normalizedName ||
+    service.name_en?.trim().toLowerCase() === normalizedName
+  ) || null;
+};
+
+const resolveService = (serviceId: string, serviceName?: string | null, formData?: Record<string, any>) => {
+  return (
+    getServiceById(serviceId) ||
+    getServiceByName(serviceName) ||
+    {
+      name: serviceName || 'Service',
+      fee: formData?.service_fee || 0,
+    }
+  );
+};
+
+const getLocalDrafts = (user: UserProfile) => {
+  const userDrafts = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(`draft_${user.id}_`)) {
+      try {
+        const draft = JSON.parse(localStorage.getItem(key)!);
+        const service = resolveService(draft.service_id, draft.service_name, draft.form_data);
+
+        userDrafts.push({
+          ...draft,
+          services: service,
+          users: user
+        });
+      } catch (err) {
+        console.error('Error parsing draft:', err);
+      }
+    }
+  }
+  return userDrafts;
+};
+
 export function useApplications(user: UserProfile | null) {
   const [applications, setApplications] = useState<Application[]>([]);
   const [drafts, setDrafts] = useState<any[]>([]);
@@ -37,23 +80,7 @@ export function useApplications(user: UserProfile | null) {
         }));
       setApplications(userApps);
 
-      const userDrafts = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith(`draft_${user.id}_`)) {
-          try {
-            const draft = JSON.parse(localStorage.getItem(key)!);
-            userDrafts.push({
-              ...draft,
-              services: getServiceById(draft.service_id) || { name: draft.service_name || 'Service', fee: 0 },
-              users: user
-            });
-          } catch (err) {
-            console.error('Error parsing draft:', err);
-          }
-        }
-      }
-      setDrafts(userDrafts);
+      setDrafts(getLocalDrafts(user));
       setLoading(false);
       return;
     }
@@ -74,13 +101,13 @@ export function useApplications(user: UserProfile | null) {
     if (data) {
       const appsWithServices = data.map((app: any) => ({
         ...app,
-        services: getServiceById(app.service_id) || { name: 'Service', fee: 0 },
+        services: resolveService(app.service_id, app.service_name, app.form_data),
         users: user
       }));
       setApplications(appsWithServices);
     }
 
-    setDrafts([]);
+    setDrafts(getLocalDrafts(user));
     setLoading(false);
   }, [user?.id]);
 

@@ -1,8 +1,7 @@
 /**
- * Utambulisho wa Mkazi PDF
- * Residency Certificate / Identification Letter
+ * Residency certificate PDF
  * 
- * Service: Utambulisho wa Mkazi
+ * Service: Cheti cha Mkazi
  */
 import React from 'react';
 import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
@@ -12,7 +11,7 @@ import { TANZANIA_LOGO_BASE64 } from '@/constants/logo';
 export const UtambulishoMkaziPDF: React.FC<DocumentPDFProps> = ({ application, lang }) => {
   const user = (application as any).users;
   const formData = application.form_data || {};
-  const qrCodeUrl = generateQRCodeUrl(application, 'Utambulisho wa Mkazi');
+  const qrCodeUrl = generateQRCodeUrl(application, 'Cheti cha Mkazi');
 
   const labels = {
     sw: {
@@ -76,11 +75,11 @@ export const UtambulishoMkaziPDF: React.FC<DocumentPDFProps> = ({ application, l
       <Page size="A4" style={commonStyles.page}>
         <Text style={commonStyles.watermark}>E-MTAA</Text>
 
-        {/* Photo Box */}
+        {/* Photo Box (absolute, top-left) */}
         <View style={commonStyles.photoSection}>
           <View style={commonStyles.photoBox}>
-            {user?.photo_url ? (
-              <Image src={user.photo_url} style={commonStyles.photo} />
+            {(formData.photo_url || user?.photo_url) ? (
+              <Image src={formData.photo_url || user.photo_url} style={commonStyles.photo} />
             ) : (
               <Text style={commonStyles.photoPlaceholder}>PICHA{'\n'}PHOTO</Text>
             )}
@@ -100,74 +99,71 @@ export const UtambulishoMkaziPDF: React.FC<DocumentPDFProps> = ({ application, l
         {/* Title */}
         <Text style={commonStyles.title}>{t.title}</Text>
 
-        {/* Personal Information Section */}
+        {/* Application ref + issue date row */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
+          <Text style={{ fontSize: 8, color: '#57534e' }}>
+            {lang === 'sw' ? 'Namba ya Maombi:' : 'App No:'} <Text style={{ fontWeight: 'bold', color: '#1c1917' }}>{application.application_number}</Text>
+          </Text>
+          <Text style={{ fontSize: 8, color: '#57534e' }}>
+            {lang === 'sw' ? 'Tarehe:' : 'Date:'} <Text style={{ fontWeight: 'bold', color: '#1c1917' }}>{formatDate(application.updated_at || application.created_at)}</Text>
+          </Text>
+        </View>
+
+        {/* Personal Info Section */}
         <View style={commonStyles.sectionHeader}>
           <Text style={commonStyles.sectionTitle}>{t.personalInfo}</Text>
         </View>
 
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{lang === 'sw' ? 'Jina Kamili:' : 'Full Name:'}</Text>
-          <Text style={commonStyles.infoValue}>{formatFullName(user)}</Text>
+        {/* 2-column grid */}
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 5 }}>
+          <View style={{ flex: 1 }}>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{lang === 'sw' ? 'Jina Kamili:' : 'Full Name:'}</Text>
+              <Text style={commonStyles.infoValue}>{formatFullName(user)}</Text>
+            </View>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.nida}:</Text>
+              <Text style={commonStyles.infoValue}>{user?.nida_number || 'N/A'}</Text>
+            </View>
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.maritalStatus}:</Text>
+              <Text style={commonStyles.infoValue}>{formData.marital_status || 'N/A'}</Text>
+            </View>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.occupation}:</Text>
+              <Text style={commonStyles.infoValue}>{formData.occupation || 'N/A'}</Text>
+            </View>
+          </View>
         </View>
 
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.nida}:</Text>
-          <Text style={commonStyles.infoValue}>{user?.nida_number || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.citizenId}:</Text>
-          <Text style={commonStyles.infoValue}>{user?.citizen_id || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.maritalStatus}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.marital_status || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.occupation}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.occupation || 'N/A'}</Text>
-        </View>
-
-        {/* Residence Information Section */}
+        {/* Residence Section */}
         <View style={commonStyles.sectionHeader}>
           <Text style={commonStyles.sectionTitle}>{t.residenceInfo}</Text>
         </View>
 
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.council}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.council || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.region}:</Text>
-          <Text style={commonStyles.infoValue}>{user?.region || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.district}:</Text>
-          <Text style={commonStyles.infoValue}>{user?.district || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.ward}:</Text>
-          <Text style={commonStyles.infoValue}>{user?.ward || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.street}:</Text>
-          <Text style={commonStyles.infoValue}>{user?.street || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.neighborhood}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.neighborhood || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.houseNo}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.house_number || 'N/A'}</Text>
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 5 }}>
+          <View style={{ flex: 1 }}>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.ward}:</Text>
+              <Text style={commonStyles.infoValue}>{formData.ward || user?.ward || 'N/A'}</Text>
+            </View>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.street}:</Text>
+              <Text style={commonStyles.infoValue}>{formData.village_street || user?.street || 'N/A'}</Text>
+            </View>
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.council}:</Text>
+              <Text style={commonStyles.infoValue}>{formData.council || 'N/A'}</Text>
+            </View>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.neighborhood}:</Text>
+              <Text style={commonStyles.infoValue}>{formData.neighborhood || 'N/A'}</Text>
+            </View>
+          </View>
         </View>
 
         {/* Purpose Section */}
@@ -179,16 +175,12 @@ export const UtambulishoMkaziPDF: React.FC<DocumentPDFProps> = ({ application, l
           <Text style={commonStyles.infoLabel}>{t.purpose}:</Text>
           <Text style={commonStyles.infoValue}>{formData.purpose || 'N/A'}</Text>
         </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.institution}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.institution_name || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.institutionType}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.institution_type || 'N/A'}</Text>
-        </View>
+        {formData.institution_name ? (
+          <View style={commonStyles.infoRow}>
+            <Text style={commonStyles.infoLabel}>{t.institution}:</Text>
+            <Text style={commonStyles.infoValue}>{formData.institution_name}</Text>
+          </View>
+        ) : null}
 
         {/* Signatures */}
         <View style={commonStyles.signatureSection}>
@@ -215,12 +207,10 @@ export const UtambulishoMkaziPDF: React.FC<DocumentPDFProps> = ({ application, l
         <View style={commonStyles.footer}>
           <Text style={commonStyles.footerText}>{t.footer}</Text>
           <Text style={commonStyles.metadata}>
-            VERIFICATION ID: {application.id.toUpperCase()} | GENERATED ON: {new Date().toISOString()}
+            ID: {application.id.toUpperCase()} | {new Date().toISOString()}
           </Text>
         </View>
       </Page>
     </Document>
   );
 };
-
-export default UtambulishoMkaziPDF;

@@ -121,99 +121,99 @@ export const KibariMazishiPDF: React.FC<DocumentPDFProps> = ({ application, lang
         {/* Title */}
         <Text style={commonStyles.title}>{t.title}</Text>
 
-        {/* Condolence Box */}
+        {/* Condolence box */}
         <View style={funeralStyles.condolenceBox}>
           <Text style={funeralStyles.arabicText}>{t.innalillahi}</Text>
           <Text style={funeralStyles.condolenceText}>{t.condolence}</Text>
         </View>
 
-        {/* Deceased Name */}
-        <Text style={funeralStyles.deceasedName}>{formData.deceased_full_name || 'N/A'}</Text>
-        <Text style={funeralStyles.dateRange}>
-          {formData.date_of_birth ? formatDate(formData.date_of_birth) : '?'} - {formatDate(formData.date_of_death)}
+        {/* Deceased Name + date range */}
+        <Text style={[funeralStyles.deceasedName, { fontSize: 16, marginBottom: 4 }]}>{formData.deceased_full_name || 'N/A'}</Text>
+        <Text style={[funeralStyles.dateRange, { marginBottom: 10 }]}>
+          {formData.date_of_birth ? formatDate(formData.date_of_birth) : '?'} — {formatDate(formData.date_of_death)}
         </Text>
 
-        {/* Deceased Information Section */}
+        {/* Application ref */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+          <Text style={{ fontSize: 8, color: '#57534e' }}>
+            {lang === 'sw' ? 'Namba ya Maombi:' : 'App No:'} <Text style={{ fontWeight: 'bold', color: '#1c1917' }}>{application.application_number}</Text>
+          </Text>
+          <Text style={{ fontSize: 8, color: '#57534e' }}>
+            {lang === 'sw' ? 'Tarehe Imetolewa:' : 'Issued:'} <Text style={{ fontWeight: 'bold', color: '#1c1917' }}>{formatDate(application.updated_at || application.created_at)}</Text>
+          </Text>
+        </View>
+
+        {/* Deceased Info — 2 columns */}
         <View style={commonStyles.sectionHeader}>
           <Text style={commonStyles.sectionTitle}>{t.deceasedInfo}</Text>
         </View>
 
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.fathersName}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.fathers_name || 'N/A'}</Text>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.age}:</Text>
+              <Text style={commonStyles.infoValue}>{formData.age_at_death ? `${formData.age_at_death} ${lang === 'sw' ? 'miaka' : 'yrs'}` : 'N/A'}</Text>
+            </View>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.dateOfDeath}:</Text>
+              <Text style={commonStyles.infoValue}>{formatDate(formData.date_of_death)}</Text>
+            </View>
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.placeOfDeath}:</Text>
+              <Text style={commonStyles.infoValue}>{formData.place_of_death || 'N/A'}</Text>
+            </View>
+          </View>
         </View>
 
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.mothersName}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.mothers_name || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.age}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.age_at_death ? `${formData.age_at_death} ${lang === 'sw' ? 'miaka' : 'years'}` : 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.placeOfDeath}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.place_of_death || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.spouse}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.surviving_spouse || 'N/A'}</Text>
-        </View>
-
-        {/* Funeral Schedule Section */}
+        {/* Funeral Schedule */}
         <View style={commonStyles.sectionHeader}>
           <Text style={commonStyles.sectionTitle}>{t.funeralSchedule}</Text>
         </View>
 
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.bodyLocation}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.body_location || 'N/A'}</Text>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.funeralDate}:</Text>
+              <Text style={commonStyles.infoValue}>{formatDate(formData.service_date)}</Text>
+            </View>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.funeralTime}:</Text>
+              <Text style={commonStyles.infoValue}>{formData.service_time || 'N/A'}</Text>
+            </View>
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.burialLocation}:</Text>
+              <Text style={commonStyles.infoValue}>{formData.burial_location || 'N/A'}</Text>
+            </View>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.serviceLocation}:</Text>
+              <Text style={commonStyles.infoValue}>{formData.service_location || 'N/A'}</Text>
+            </View>
+          </View>
         </View>
 
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.funeralDate}:</Text>
-          <Text style={commonStyles.infoValue}>{formatDate(formData.service_date)}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.funeralTime}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.service_time || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.serviceLocation}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.service_location || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.burialLocation}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.burial_location || 'N/A'}</Text>
-        </View>
-
-        {/* Family Contact Section */}
+        {/* Family Contact */}
         <View style={commonStyles.sectionHeader}>
           <Text style={commonStyles.sectionTitle}>{t.familyContact}</Text>
         </View>
 
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.representative}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.family_representative || 'N/A'}</Text>
-        </View>
-
-        <View style={commonStyles.infoRow}>
-          <Text style={commonStyles.infoLabel}>{t.phone}:</Text>
-          <Text style={commonStyles.infoValue}>{formData.representative_phone || 'N/A'}</Text>
-        </View>
-
-        {formData.children_names && (
-          <View style={commonStyles.infoRow}>
-            <Text style={commonStyles.infoLabel}>{t.children}:</Text>
-            <Text style={commonStyles.infoValue}>{formData.children_names}</Text>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.representative}:</Text>
+              <Text style={commonStyles.infoValue}>{formData.family_representative || 'N/A'}</Text>
+            </View>
           </View>
-        )}
+          <View style={{ flex: 1 }}>
+            <View style={commonStyles.infoRow}>
+              <Text style={commonStyles.infoLabel}>{t.phone}:</Text>
+              <Text style={commonStyles.infoValue}>{formData.representative_phone || 'N/A'}</Text>
+            </View>
+          </View>
+        </View>
 
         {/* QR Code */}
         <View style={commonStyles.qrSection}>
@@ -225,7 +225,7 @@ export const KibariMazishiPDF: React.FC<DocumentPDFProps> = ({ application, lang
         <View style={commonStyles.footer}>
           <Text style={commonStyles.footerText}>{t.footer}</Text>
           <Text style={commonStyles.metadata}>
-            VERIFICATION ID: {application.id.toUpperCase()} | GENERATED ON: {new Date().toISOString()}
+            ID: {application.id.toUpperCase()} | {new Date().toISOString()}
           </Text>
         </View>
       </Page>

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// src/components/layout/Sidebar.tsx
+import React, { useMemo } from 'react';
 import { 
   LayoutDashboard, 
   Plus, 
@@ -8,195 +9,176 @@ import {
   Shield, 
   Users,
   User,
-  Building2,
-  MapPin,
   Settings,
-  HelpCircle,
-  UserCheck,
   Activity
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useLanguage } from '@/context/LanguageContext';
-import { supabase } from '@/lib/supabase';
 import { SidebarItem } from '@/components/ui/SidebarItem';
+import { Permission, hasPermission } from '@/lib/rbac';
 
 interface SidebarProps {
   currentView: string;
-  setView: (view: any) => void;
+  setView: (view: string) => void;
+}
+
+interface MenuItem {
+  id: string;
+  icon: React.ReactNode;
+  label: string;
+  view: string;
+  permission: Permission | null;
 }
 
 export function Sidebar({ currentView, setView }: SidebarProps) {
-  const { user, session } = useAuth();
-  const { lang, t } = useLanguage();
-  const [actualRole, setActualRole] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const { lang } = useLanguage();
 
-  // Direct database check for actual role using RPC (bypasses RLS)
-  useEffect(() => {
-    if (!session || !session.user.id) {
-      setActualRole(null);
-      setLoading(false);
-      return;
-    }
+  const role = user?.role || 'citizen';
 
-    const fetchActualRole = async () => {
-      try {
-        const { data, error } = await supabase
-          .rpc('get_user_profile', { user_id: session.user.id });
+  // Define all menu items with RBAC permissions
+  const menuConfig = useMemo<MenuItem[]>(() => [
+    // Dashboard - Visible to everyone
+    {
+      id: 'dashboard',
+      icon: <LayoutDashboard size={20} />,
+      label: lang === 'sw' ? 'Dashibodi' : 'Dashboard',
+      view: role === 'admin' ? 'admin_dashboard' : role === 'staff' ? 'staff_dashboard' : 'dashboard',
+      permission: null
+    },
 
-        if (data && data.length > 0) {
-          console.log('RPC role fetch:', data[0].role);
-          setActualRole(data[0].role);
-        } else {
-          console.log('No user profile found, using auth context role');
-          setActualRole(user?.role || null);
-        }
-      } catch (err) {
-        console.error('Error fetching role from DB:', err);
-        setActualRole(user?.role || null);
-      } finally {
-        setLoading(false);
+    // Citizen-only items
+    ...(role === 'citizen' ? [
+      {
+        id: 'services',
+        icon: <Plus size={20} />,
+        label: lang === 'sw' ? 'Omba Huduma' : 'Apply for Service',
+        view: 'services',
+        permission: 'submit_applications' as const
+      },
+      {
+        id: 'applications',
+        icon: <FileText size={20} />,
+        label: lang === 'sw' ? 'Maombi Yangu' : 'My Applications',
+        view: 'applications',
+        permission: 'view_applications' as const
       }
-    };
+    ] : []),
 
-    fetchActualRole();
-  }, [session?.user.id, user?.role]);
+    // Admin-only items
+    ...(role === 'admin' ? [
+      {
+        id: 'staff_management',
+        icon: <Shield size={20} />,
+        label: lang === 'sw' ? 'Usimamizi wa Watumishi' : 'Staff Management',
+        view: 'staff_management',
+        permission: 'manage_staff' as const
+      },
+      {
+        id: 'citizen_management',
+        icon: <Users size={20} />,
+        label: lang === 'sw' ? 'Usimamizi wa Wananchi' : 'Citizen Management',
+        view: 'citizen_management',
+        permission: 'view_all_applications' as const
+      },
+      {
+        id: 'service_management',
+        icon: <Settings size={20} />,
+        label: lang === 'sw' ? 'Usimamizi wa Huduma' : 'Service Management',
+        view: 'service_management',
+        permission: 'manage_services' as const
+      },
+      {
+        id: 'admin_logs',
+        icon: <Activity size={20} />,
+        label: lang === 'sw' ? 'Kumbukumbu' : 'Activity Logs',
+        view: 'admin_logs',
+        permission: null
+      }
+    ] : []),
 
-  // Use database role if available, otherwise fall back to context
-  const displayRole = actualRole || user?.role;
+    // Staff-only items
+    ...(role === 'staff' ? [
+      {
+        id: 'application_review',
+        icon: <Eye size={20} />,
+        label: lang === 'sw' ? 'Uhakiki wa Maombi' : 'Application Review',
+        view: 'application_review',
+        permission: 'review_applications' as const
+      },
+    ] : []),
 
-  if (loading) {
-    return (
-      <aside className="w-64 bg-white border-r border-stone-200 hidden lg:flex flex-col p-4 gap-2">
-        <div className="text-sm text-stone-500">Loading...</div>
-      </aside>
-    );
-  }
+    // Common items (available to all authenticated users)
+    {
+      id: 'verify_documents',
+      icon: <Search size={20} />,
+      label: lang === 'sw' ? 'Hakiki Hati' : 'Verify Document',
+      view: 'verify_documents',
+      permission: 'verify_documents' as const
+    },
+    {
+      id: 'profile',
+      icon: <User size={20} />,
+      label: lang === 'sw' ? 'Wasifu' : 'Profile',
+      view: 'profile',
+      permission: null
+    }
+  ], [role, lang]);
+
+  // Filter items based on user permissions
+  const visibleItems = useMemo(() => {
+    return menuConfig.filter(item => {
+      if (!item.permission) return true;
+      return hasPermission(role, item.permission);
+    });
+  }, [menuConfig, role]);
 
   return (
-    <aside className="w-64 bg-white border-r border-stone-200 hidden lg:flex flex-col p-4 gap-2">
-      <SidebarItem 
-        icon={<LayoutDashboard size={20} />} 
-        label={lang === 'sw' ? 'Dashibodi' : 'Dashboard'} 
-        active={currentView === 'dashboard' || currentView === 'admin_dashboard' || currentView === 'staff_dashboard'} 
-        onClick={() => {
-          if (displayRole === 'admin') setView('admin_dashboard');
-          else if (displayRole === 'staff') setView('staff_dashboard');
-          else setView('dashboard');
-        }} 
-      />
+    <aside className="w-64 bg-white border-r border-stone-200 hidden lg:flex flex-col h-screen overflow-hidden">
+      {/* Logo Header */}
+      <div className="p-6 border-b border-stone-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-emerald-600 rounded-2xl flex items-center justify-center shrink-0">
+            <span className="text-white font-black text-2xl">E</span>
+          </div>
+          <div>
+            <div className="font-black text-2xl tracking-tighter text-stone-900">E-MTAA</div>
+            <div className="text-xs font-bold text-emerald-600 -mt-1">LOCAL GOVERNMENT PORTAL</div>
+          </div>
+        </div>
+      </div>
 
-      {displayRole === 'citizen' && (
-        <>
-          <SidebarItem 
-            icon={<Plus size={20} />} 
-            label={lang === 'sw' ? 'Omba' : 'Apply'} 
-            active={currentView === 'services' || currentView === 'apply'} 
-            onClick={() => setView('services')} 
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+        {visibleItems.map((item) => (
+          <SidebarItem
+            key={item.id}
+            icon={item.icon}
+            label={item.label}
+            active={currentView === item.view}
+            onClick={() => setView(item.view)}
           />
-          <SidebarItem 
-            icon={<FileText size={20} />} 
-            label={t('nav.myApplications')} 
-            active={currentView === 'applications'} 
-            onClick={() => setView('applications')} 
-          />
-        </>
-      )}
+        ))}
+      </nav>
 
-      {displayRole === 'admin' && (
-        <>
-          <SidebarItem 
-            icon={<Shield size={20} />} 
-            label={lang === 'sw' ? 'Usimamizi wa Watumishi' : 'Staff Management'} 
-            active={currentView === 'staff_management'} 
-            onClick={() => setView('staff_management')} 
-          />
-          <SidebarItem 
-            icon={<Users size={20} />} 
-            label={lang === 'sw' ? 'Usimamizi wa Wananchi' : 'Citizen Management'} 
-            active={currentView === 'citizen_management'} 
-            onClick={() => setView('citizen_management')} 
-          />
-          <SidebarItem 
-            icon={<Building2 size={20} />} 
-            label={lang === 'sw' ? 'Idhini ya Biashara' : 'Business Approval'} 
-            active={currentView === 'business_approval'} 
-            onClick={() => setView('business_approval')} 
-          />
-          <SidebarItem 
-            icon={<Building2 size={20} />} 
-            label={lang === 'sw' ? 'Usimamizi wa Ofisi' : 'Office Management'} 
-            active={currentView === 'office_management'} 
-            onClick={() => setView('office_management')} 
-          />
-          <SidebarItem 
-            icon={<MapPin size={20} />} 
-            label={lang === 'sw' ? 'Usimamizi wa Maeneo' : 'Location Management'} 
-            active={currentView === 'location_management'} 
-            onClick={() => setView('location_management')} 
-          />
-          <SidebarItem 
-            icon={<Settings size={20} />} 
-            label={lang === 'sw' ? 'Usimamizi wa Huduma' : 'Service Management'} 
-            active={currentView === 'service_management'} 
-            onClick={() => setView('service_management')} 
-          />
-          <SidebarItem 
-            icon={<Activity size={20} />} 
-            label={lang === 'sw' ? 'Kumbukumbu' : 'Activity Logs'} 
-            active={currentView === 'admin_logs'} 
-            onClick={() => setView('admin_logs')} 
-          />
-        </>
-      )}
-
-      {displayRole === 'staff' && (
-        <>
-          <SidebarItem 
-            icon={<Users size={20} />} 
-            label={lang === 'sw' ? 'Usimamizi wa Wananchi' : 'Citizen Management'} 
-            active={currentView === 'citizen_management'} 
-            onClick={() => setView('citizen_management')} 
-          />
-          <SidebarItem 
-            icon={<Eye size={20} />} 
-            label={lang === 'sw' ? 'Uhakiki wa Maombi' : 'Application Review'} 
-            active={currentView === 'application_review'} 
-            onClick={() => setView('application_review')} 
-          />
-          <SidebarItem 
-            icon={<Building2 size={20} />} 
-            label={lang === 'sw' ? 'Idhini ya Biashara' : 'Business Approval'} 
-            active={currentView === 'business_approval'} 
-            onClick={() => setView('business_approval')} 
-          />
-          <SidebarItem 
-            icon={<HelpCircle size={20} />} 
-            label={lang === 'sw' ? 'Huduma kwa Wateja' : 'Customer Support'} 
-            active={currentView === 'customer_support'} 
-            onClick={() => setView('customer_support')} 
-          />
-          <SidebarItem 
-            icon={<UserCheck size={20} />} 
-            label={lang === 'sw' ? 'Uhakiki wa Mwongozo' : 'Manual Verification'} 
-            active={currentView === 'manual_verification'} 
-            onClick={() => setView('manual_verification')} 
-          />
-        </>
-      )}
-
-      <SidebarItem 
-        icon={<Search size={20} />} 
-        label={lang === 'sw' ? 'Hakiki Hati' : 'Verify Document'} 
-        active={currentView === 'verify_documents'} 
-        onClick={() => setView('verify_documents')} 
-      />
-      <SidebarItem 
-        icon={<User size={20} />} 
-        label={lang === 'sw' ? 'Wasifu' : 'Profile'} 
-        active={currentView === 'profile'} 
-        onClick={() => setView('profile')} 
-      />
+      {/* Footer - Role Info */}
+      <div className="p-4 border-t border-stone-100 bg-stone-50">
+        <div className="flex items-center gap-3 px-3 py-2 bg-white rounded-2xl border">
+          <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 font-semibold">
+            {user?.first_name?.charAt(0) || 'U'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-stone-800 truncate">
+              {user?.first_name} {user?.last_name}
+            </p>
+            <p className="text-xs text-stone-500 capitalize">
+              {role === 'admin' ? (lang === 'sw' ? 'Msimamizi' : 'Administrator') :
+               role === 'staff' ? (lang === 'sw' ? 'Mtumishi' : 'Staff') : 
+               (lang === 'sw' ? 'Raia' : 'Citizen')}
+            </p>
+          </div>
+        </div>
+      </div>
     </aside>
   );
 }

@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/package",
   "name": "e-mtaa-portal",
   "private": true,
   "version": "1.0.0",
@@ -13,6 +14,7 @@
     "@hookform/resolvers": "^3.3.2",
     "@react-pdf/renderer": "^3.4.4",
     "@supabase/supabase-js": "^2.39.0",
+    "@tanstack/react-query": "^5.99.0",
     "buffer": "^6.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^3.0.0",
