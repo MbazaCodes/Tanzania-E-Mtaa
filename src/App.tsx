@@ -15,6 +15,7 @@ import { HARDCODED_SERVICES } from '@/constants/services';
 import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
 import { MobileNav } from './components/layout/MobileNav';
+import { BottomTabBar } from './components/layout/BottomTabBar';
 
 import { Landing } from './pages/Landing';
 import { Auth } from './pages/Auth';
@@ -477,7 +478,7 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar currentView={view} setView={handleViewChange} />
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-20 lg:pb-6">
           <Suspense fallback={loadingFallback}>
             <AnimatePresence mode="wait">
               {view === 'dashboard' && <Dashboard applications={applications} setView={handleViewChange} onRefresh={refreshApplications} />}
@@ -536,6 +537,9 @@ export default function App() {
           </Suspense>
         </main>
       </div>
+
+      {/* Mobile bottom tab bar */}
+      <BottomTabBar currentView={view} setView={handleViewChange} />
 
       {/* Payment Modal */}
       <AnimatePresence>

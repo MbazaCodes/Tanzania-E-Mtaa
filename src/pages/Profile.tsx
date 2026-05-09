@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, CheckCircle2, Building2, MapPin, RefreshCw, LogOut, Camera, Loader2, 
   Upload, Edit2, X, Save, AlertCircle, Clock, Shield, Eye, EyeOff, 
-  Plus, Download, Trash2, FileText, Award 
+  Plus, Download, Trash2, FileText, Award, BadgeCheck, XCircle
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
@@ -41,6 +41,13 @@ const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024; // 10MB
 
 interface ProfileProps { }
 
+interface MkaziCertificate {
+  application_number: string;
+  status: string;
+  created_at: string;
+  form_data?: Record<string, unknown>;
+}
+
 export function Profile() {
   const { user, signOut, refreshProfile } = useAuth();
   const { lang } = useLanguage();
@@ -55,6 +62,7 @@ export function Profile() {
   const [selectedDocCategory, setSelectedDocCategory] = useState<'id' | 'certificate' | 'support'>('id');
   const [selectedDocType, setSelectedDocType] = useState('');
   const [documentUploading, setDocumentUploading] = useState(false);
+  const [mkaziCert, setMkaziCert] = useState<MkaziCertificate | null | undefined>(undefined);
 
   const [formData, setFormData] = useState({
     first_name: '',
@@ -110,6 +118,23 @@ export function Profile() {
     }
   }, [user?.id, lang, showToast]);
 
+  const fetchMkaziCertificate = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const { data } = await supabase
+        .from('applications')
+        .select('application_number, status, created_at, form_data')
+        .eq('user_id', user.id)
+        .or('service_name.ilike.%mkazi%,service_name.ilike.%utambulisho wa mkazi%')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setMkaziCert(data ?? null);
+    } catch {
+      setMkaziCert(null);
+    }
+  }, [user?.id]);
+
   const fetchDocuments = useCallback(async () => {
     if (!user?.id) return;
     try {
@@ -129,14 +154,15 @@ export function Profile() {
   useEffect(() => {
     fetchProfileData();
     fetchDocuments();
-  }, [fetchProfileData, fetchDocuments]);
+    fetchMkaziCertificate();
+  }, [fetchProfileData, fetchDocuments, fetchMkaziCertificate]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.all([fetchProfileData(), fetchDocuments()]);
+    await Promise.all([fetchProfileData(), fetchDocuments(), fetchMkaziCertificate()]);
     setTimeout(() => setIsRefreshing(false), 600);
     showToast(lang === 'sw' ? 'Wasifu umesasishwa' : 'Profile refreshed', 'success');
-  }, [fetchProfileData, fetchDocuments, lang, showToast]);
+  }, [fetchProfileData, fetchDocuments, fetchMkaziCertificate, lang, showToast]);
 
   const handleSaveProfile = async () => {
     if (!user?.id) return;
@@ -305,7 +331,68 @@ export function Profile() {
 
       {/* Personal Info Tab */}
       {activeTab === 'personal' && (
-        <div className="bg-white rounded-3xl p-8 border border-stone-100">
+        <div className="space-y-6">
+
+          {/* NAMBA YA CHETI CHA MKAZI card */}
+          <div className={`rounded-3xl p-6 border-2 flex items-center gap-5 ${
+            mkaziCert?.status === 'approved'
+              ? 'bg-emerald-50 border-emerald-300'
+              : mkaziCert
+              ? 'bg-amber-50 border-amber-300'
+              : 'bg-stone-50 border-stone-200'
+          }`}>
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
+              mkaziCert?.status === 'approved'
+                ? 'bg-emerald-600 text-white'
+                : mkaziCert
+                ? 'bg-amber-500 text-white'
+                : 'bg-stone-300 text-white'
+            }`}>
+              {mkaziCert?.status === 'approved' ? <BadgeCheck size={28} /> : <XCircle size={28} />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wider text-stone-500 mb-1">
+                {lang === 'sw' ? 'Namba ya Cheti cha Mkazi' : 'Residence Certificate No.'}
+              </p>
+              {mkaziCert === undefined ? (
+                <div className="h-5 w-40 bg-stone-200 animate-pulse rounded" />
+              ) : mkaziCert?.status === 'approved' ? (
+                <>
+                  <p className="font-mono font-black text-xl text-emerald-700 tracking-wider">
+                    {mkaziCert.application_number}
+                  </p>
+                  <span className="inline-flex items-center gap-1.5 mt-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
+                    <BadgeCheck size={12} />
+                    {lang === 'sw' ? 'Imeidhinishwa' : 'Verified & Approved'}
+                  </span>
+                </>
+              ) : mkaziCert ? (
+                <>
+                  <p className="font-mono font-bold text-lg text-amber-700">
+                    {mkaziCert.application_number}
+                  </p>
+                  <span className="inline-flex items-center gap-1.5 mt-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
+                    <Clock size={12} />
+                    {lang === 'sw'
+                      ? `Hali: ${mkaziCert.status}`
+                      : `Status: ${mkaziCert.status}`}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <p className="text-stone-500 font-medium">
+                    {lang === 'sw' ? 'Hujawahi omba Cheti cha Mkazi' : 'No Residence Certificate applied'}
+                  </p>
+                  <span className="inline-flex items-center gap-1.5 mt-1 px-2.5 py-0.5 rounded-full bg-stone-200 text-stone-600 text-xs font-bold">
+                    <XCircle size={12} />
+                    {lang === 'sw' ? 'Haijaidhinishwa' : 'Not Verified'}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl p-8 border border-stone-100">
           {/* Form fields here - simplified for brevity, add all your fields similarly */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -356,6 +443,7 @@ export function Profile() {
               </button>
             </div>
           )}
+          </div>
         </div>
       )}
 

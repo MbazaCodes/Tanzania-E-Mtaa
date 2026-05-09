@@ -16,10 +16,11 @@ import { useForm } from 'react-hook-form';
 import { 
   Loader2, CheckCircle, ArrowLeft, ArrowRight, Eye, FileCheck,
   User, MapPin, Phone, Mail, Calendar, CreditCard, Home,
-  AlertCircle, Search, FileText, Building
+  AlertCircle, Search, FileText, Building, Users, Upload
 } from 'lucide-react';
 import { FormProps, labels } from './types';
 import { ProgressFill } from '../ui/ProgressFill';
+import { PhotoCapture } from '../ui/PhotoCapture';
 import { supabase } from '@/lib/supabase';
 
 // Council options - All Tanzania Halmashauri (Ward-level Councils)
@@ -260,6 +261,16 @@ interface MkaziRecord {
 }
 
 interface FormData {
+  // Who is being applied for
+  applicant_type: 'self' | 'minor' | 'third_party';
+
+  // Subject details (used when applicant_type is 'minor' or 'third_party')
+  subject_full_name: string;
+  subject_dob: string;
+  subject_nida: string;
+  subject_relationship: string;
+  subject_reason: string;
+
   // Mkazi Reference
   mkazi_number: string;
   mkazi_verified: boolean;
@@ -287,9 +298,12 @@ interface FormData {
   institution_name: string;
   institution_address: string;
   additional_notes: string;
+
+  // ID type for uploaded document
+  id_type: string;
 }
 
-type Step = 'mkazi' | 'verify' | 'purpose' | 'review';
+type Step = 'mkazi' | 'verify' | 'purpose' | 'documents' | 'review';
 
 export const BaruaUtambulishoForm: React.FC<FormProps> = ({
   onSubmit,
@@ -303,6 +317,12 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
   const [showReview, setShowReview] = useState(false);
   const [formData, setFormData] = useState<FormData | null>(null);
   const [selectedCouncil, setSelectedCouncil] = useState<string>('');
+  const [applicantType, setApplicantType] = useState<'self' | 'minor' | 'third_party'>('self');
+
+  // Photo & document upload state
+  const [applicantIdPhoto, setApplicantIdPhoto] = useState<string | null>(null);
+  const [subjectPhoto, setSubjectPhoto] = useState<string | null>(null);
+  const [supportingDocPhoto, setSupportingDocPhoto] = useState<string | null>(null);
   
   // Mkazi lookup state
   const [mkaziNumber, setMkaziNumber] = useState('');
@@ -322,6 +342,7 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
     { key: 'mkazi', label: 'Residence Certificate', swLabel: 'Cheti cha Mkazi' },
     { key: 'verify', label: 'Verify Details', swLabel: 'Hakiki Taarifa' },
     { key: 'purpose', label: 'Purpose', swLabel: 'Sababu' },
+    { key: 'documents', label: 'Documents', swLabel: 'Nyaraka' },
     { key: 'review', label: 'Review', swLabel: 'Hakiki' },
   ];
 
@@ -512,6 +533,8 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
     if (!isValid) return;
 
     if (currentStep === 'purpose') {
+      setCurrentStep('documents');
+    } else if (currentStep === 'documents') {
       setCurrentStep('review');
     } else {
       const nextStep = steps[currentStepIndex + 1].key;
@@ -532,7 +555,13 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
 
   const confirmSubmit = async () => {
     if (!mkaziRecord) return;
-    const submitData = formData ?? getValues();
+    const submitData = {
+      ...(formData ?? getValues()),
+      applicant_type: applicantType,
+      applicant_id_photo: applicantIdPhoto,
+      subject_photo: subjectPhoto,
+      supporting_doc_photo: supportingDocPhoto,
+    };
     await Promise.resolve(onSubmit(submitData, [], 'self'));
   };
 
@@ -794,7 +823,122 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
             </h3>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+          {/* Applicant Type Selector */}
+          <div>
+            <label className={labelClass}>
+              <Users className="inline h-4 w-4 mr-1.5 text-emerald-600" />
+              {lang === 'sw' ? 'Barua hii inaombwa kwa ajili ya nani?' : 'Who is this letter being applied for?'}
+              <span className="text-red-500 ml-1">*</span>
+            </label>
+            <div className="grid grid-cols-3 gap-3">
+              {([
+                { value: 'self', sw: 'Mwenyewe', en: 'Myself' },
+                { value: 'minor', sw: 'Mtoto/Mdogo', en: 'A Minor' },
+                { value: 'third_party', sw: 'Mtu Mwingine', en: 'Third Party' },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setApplicantType(opt.value)}
+                  className={`p-3 rounded-xl border-2 text-sm font-semibold transition-all ${
+                    applicantType === opt.value
+                      ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                      : 'border-stone-200 text-stone-600 hover:border-emerald-300'
+                  }`}
+                >
+                  {lang === 'sw' ? opt.sw : opt.en}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Subject Details — shown when applying for a minor or third party */}
+          {(applicantType === 'minor' || applicantType === 'third_party') && (
+            <div className="space-y-4 bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <h4 className="font-bold text-amber-800 flex items-center gap-2">
+                <User className="h-4 w-4" />
+                {lang === 'sw'
+                  ? (applicantType === 'minor' ? 'Taarifa za Mtoto / Mdogo' : 'Taarifa za Mtu Unayemombea')
+                  : (applicantType === 'minor' ? 'Minor\'s Details' : 'Subject\'s Details')}
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className={labelClass}>
+                    {lang === 'sw' ? 'Jina Kamili la Mhusika' : 'Full Name of Subject'}
+                    <span className="text-red-500 ml-1">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    {...register('subject_full_name', { required: true })}
+                    className={inputClass}
+                    placeholder={lang === 'sw' ? 'Jina kamili la mhusika' : 'Subject\'s full legal name'}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>
+                    {lang === 'sw' ? 'Tarehe ya Kuzaliwa' : 'Date of Birth'}
+                  </label>
+                  <input
+                    type="date"
+                    {...register('subject_dob')}
+                    className={inputClass}
+                  />
+                </div>
+
+                {applicantType === 'third_party' && (
+                  <div>
+                    <label className={labelClass}>
+                      {lang === 'sw' ? 'Namba ya NIDA (Mhusika)' : 'Subject\'s NIDA Number'}
+                    </label>
+                    <input
+                      type="text"
+                      {...register('subject_nida')}
+                      className={inputClass}
+                      placeholder="NIDA-XXXX-XXXX-XXXX"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className={labelClass}>
+                    {lang === 'sw' ? 'Uhusiano wako naye' : 'Your Relationship to Subject'}
+                    <span className="text-red-500 ml-1">*</span>
+                  </label>
+                  <select
+                    {...register('subject_relationship', { required: true })}
+                    className={inputClass}
+                  >
+                    <option value="">{lang === 'sw' ? 'Chagua uhusiano' : 'Select relationship'}</option>
+                    <option value="parent">{lang === 'sw' ? 'Mzazi' : 'Parent'}</option>
+                    <option value="guardian">{lang === 'sw' ? 'Mlezi' : 'Guardian'}</option>
+                    <option value="sibling">{lang === 'sw' ? 'Ndugu/Dada' : 'Sibling'}</option>
+                    <option value="spouse">{lang === 'sw' ? 'Mwenzi wa Ndoa' : 'Spouse'}</option>
+                    <option value="employer">{lang === 'sw' ? 'Mwajiri' : 'Employer'}</option>
+                    <option value="other">{lang === 'sw' ? 'Nyingine' : 'Other'}</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className={labelClass}>
+                    {lang === 'sw' ? 'Sababu ya Kuomba kwa Niaba yake' : 'Reason for Applying on Their Behalf'}
+                    <span className="text-red-500 ml-1">*</span>
+                  </label>
+                  <textarea
+                    {...register('subject_reason', { required: true })}
+                    className={inputClass}
+                    rows={3}
+                    placeholder={lang === 'sw'
+                      ? 'Eleza kwa nini unawakilia mtu huyu...'
+                      : 'Explain why you are applying on behalf of this person...'}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
               <p className="text-sm text-blue-700">
@@ -1114,6 +1258,79 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
         </div>
       )}
 
+      {/* Step 4: Upload Documents & Photos */}
+      {currentStep === 'documents' && (
+        <div className="space-y-6">
+          <div className={sectionClass}>
+            <h3 className="font-bold text-emerald-800 flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              {lang === 'sw' ? 'PAKIA NYARAKA NA PICHA' : 'UPLOAD DOCUMENTS & PHOTOS'}
+            </h3>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <p className="text-sm text-blue-700">
+              {lang === 'sw'
+                ? 'Pakia picha ya kitambulisho chako na nyaraka zinazohusiana. Picha zitaonekana kwenye PDF ya barua yako. Nyaraka zinahitajika ili kuthibitisha maombi yako.'
+                : 'Upload a photo of your ID and related documents. Photos appear in your letter PDF. Documents are required to verify your application.'}
+            </p>
+          </div>
+
+          {/* Applicant's ID photo */}
+          <PhotoCapture
+            label={lang === 'sw' ? 'Picha ya Kitambulisho Chako (Muombaji)' : 'Your ID / Photo (Applicant)'}
+            description={lang === 'sw'
+              ? 'Piga picha ya kitambulisho chako cha NIDA, pasi, au leseni. Hiari lakini inasaidia uthibitisho.'
+              : 'Take a photo of your NIDA card, passport, or driving license. Optional but speeds up verification.'}
+            value={applicantIdPhoto}
+            onChange={setApplicantIdPhoto}
+            lang={lang}
+          />
+
+          {/* ID type selector */}
+          <div>
+            <label className={labelClass}>
+              {lang === 'sw' ? 'Aina ya Kitambulisho Kilichopakiwa' : 'Type of ID Uploaded'}
+            </label>
+            <select {...register('id_type')} className={inputClass}>
+              <option value="">{lang === 'sw' ? 'Chagua aina (hiari)' : 'Select type (optional)'}</option>
+              <option value="nida">{lang === 'sw' ? 'Kadi ya NIDA' : 'NIDA Card'}</option>
+              <option value="passport">{lang === 'sw' ? 'Pasi ya Kusafiria' : 'Passport'}</option>
+              <option value="voter_id">{lang === 'sw' ? 'Kadi ya Mpiga Kura' : "Voter's Card"}</option>
+              <option value="driving_license">{lang === 'sw' ? 'Leseni ya Udereva' : 'Driving License'}</option>
+              <option value="zanzibar_id">{lang === 'sw' ? 'Kitambulisho cha Zanzibar' : 'Zanzibar ID'}</option>
+            </select>
+          </div>
+
+          {/* Subject photo — shown for minor or third party */}
+          {(applicantType === 'minor' || applicantType === 'third_party') && (
+            <PhotoCapture
+              label={lang === 'sw'
+                ? (applicantType === 'minor' ? 'Picha ya Mtoto / Mdogo' : 'Picha ya Mhusika')
+                : (applicantType === 'minor' ? "Minor's Photo" : "Subject's Photo")}
+              description={lang === 'sw'
+                ? 'Picha ya hivi karibuni inayoonyesha uso wazi.'
+                : 'Recent clear face photo of the subject.'}
+              value={subjectPhoto}
+              onChange={setSubjectPhoto}
+              lang={lang}
+            />
+          )}
+
+          {/* Supporting document */}
+          <PhotoCapture
+            label={lang === 'sw' ? 'Nyaraka ya Msaada (Hiari)' : 'Supporting Document (Optional)'}
+            description={lang === 'sw'
+              ? 'Barua ya msaada, hati ya uhusiano, au nyaraka nyingine inayohusiana na maombi yako.'
+              : 'Support letter, relationship document, or any other document relevant to your application.'}
+            value={supportingDocPhoto}
+            onChange={setSupportingDocPhoto}
+            lang={lang}
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+          />
+        </div>
+      )}
+
       {/* Navigation Buttons */}
       <div className="flex gap-3 pt-6 border-t border-stone-200">
         {currentStepIndex > 0 && (
@@ -1134,10 +1351,15 @@ export const BaruaUtambulishoForm: React.FC<FormProps> = ({
             currentStepIndex === 0 ? 'w-full' : ''
           }`}
         >
-          {currentStep === 'purpose' ? (
+          {currentStep === 'documents' ? (
             <>
               {lang === 'sw' ? 'Hakiki Maombi' : 'Review Application'}
               <Eye className="h-5 w-5" />
+            </>
+          ) : currentStep === 'purpose' ? (
+            <>
+              {lang === 'sw' ? 'Endelea' : 'Continue'}
+              <ArrowRight className="h-5 w-5" />
             </>
           ) : (
             <>

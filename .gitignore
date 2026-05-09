@@ -30,3 +30,4 @@ dist-ssr
 
 # Tailwind CSS v4
 *.css.map
+.vercel
