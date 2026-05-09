@@ -16,7 +16,7 @@ export const HARDCODED_SERVICES: Service[] = [
     name_en: "Residency Certificate",
     description: "Pata uthibitisho rasmi wa makazi yako kwenye mtaa wako.",
     description_en: "Get official confirmation of your residence in your street.",
-    fee: 5000,
+    fee: 1000,
     active: true,
     validity_months: 12,
     form_schema: [
@@ -202,7 +202,7 @@ export const HARDCODED_SERVICES: Service[] = [
     name_en: "Introduction Letter",
     description: "Barua rasmi kwa ajili ya kazi, shule, na huduma nyingine.",
     description_en: "Official letter for work, school, and other services.",
-    fee: 3000,
+    fee: 2000,
     active: true,
     extra_address_fee: 1000,
     form_schema: [
@@ -341,7 +341,7 @@ export const HARDCODED_SERVICES: Service[] = [
     name_en: "Burial Permit",
     description: "Kibali rasmi cha mazishi.",
     description_en: "Official burial permit.",
-    fee: 2000,
+    fee: 1000,
     active: true,
     form_schema: [
       { "name": "section_deceased", "label": "TAARIFA ZA MAREHEMU", "type": "header" },

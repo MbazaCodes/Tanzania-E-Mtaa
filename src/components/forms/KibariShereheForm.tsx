@@ -29,14 +29,14 @@ const EVENT_TYPES = [
   { label: 'NYINGINEZO - Other', value: 'NYINGINEZO' },
 ];
 
-// Expected guests ranges
+// Expected guests ranges with fee tiers (10,000 – 50,000 TZS)
 const GUEST_RANGES = [
-  { label: 'Chini ya 50', value: '0-50' },
-  { label: '50 - 100', value: '50-100' },
-  { label: '100 - 200', value: '100-200' },
-  { label: '200 - 500', value: '200-500' },
-  { label: '500 - 1000', value: '500-1000' },
-  { label: 'Zaidi ya 1000', value: '1000+' },
+  { label: 'Chini ya 50',    value: '0-50',     fee: 10000 },
+  { label: '50 – 100',       value: '50-100',   fee: 15000 },
+  { label: '100 – 200',      value: '100-200',  fee: 20000 },
+  { label: '200 – 500',      value: '200-500',  fee: 30000 },
+  { label: '500 – 1000',     value: '500-1000', fee: 40000 },
+  { label: 'Zaidi ya 1000',  value: '1000+',    fee: 50000 },
 ];
 
 // Event duration options
@@ -142,7 +142,9 @@ export const KibariShereheForm: React.FC<FormProps> = ({
 
   const confirmSubmit = () => {
     if (formData) {
-      onSubmit(formData);
+      const tier = GUEST_RANGES.find(r => r.value === formData.expected_guests);
+      const fee = tier?.fee ?? 10000;
+      onSubmit({ ...formData, service_fee: fee });
     }
   };
 
@@ -296,6 +298,22 @@ export const KibariShereheForm: React.FC<FormProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Fee summary */}
+              {data.expected_guests && (() => {
+                const tier = GUEST_RANGES.find(r => r.value === data.expected_guests);
+                if (!tier) return null;
+                return (
+                  <div className="mt-3 flex items-center gap-3 rounded-xl bg-pink-50 border border-pink-200 px-4 py-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-pink-500">
+                        {lang === 'sw' ? 'Ada ya Kibali cha Tukio' : 'Event Permit Fee'}
+                      </p>
+                      <p className="text-xl font-black text-pink-900">TZS {tier.fee.toLocaleString()}</p>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -614,11 +632,27 @@ export const KibariShereheForm: React.FC<FormProps> = ({
                 >
                   <option value="">{t.select}</option>
                   {GUEST_RANGES.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    <option key={opt.value} value={opt.value}>{opt.label} — {opt.fee.toLocaleString()} TZS</option>
                   ))}
                 </select>
               </div>
               {errors.expected_guests && <span className="text-red-500 text-sm">{t.required}</span>}
+              {/* Dynamic fee indicator */}
+              {(() => {
+                const selected = watch('expected_guests');
+                const tier = GUEST_RANGES.find(r => r.value === selected);
+                if (!tier) return null;
+                return (
+                  <div className="mt-2 flex items-center gap-2 rounded-xl bg-pink-50 border border-pink-200 px-3 py-2">
+                    <span className="text-xs font-bold text-pink-700">
+                      {lang === 'sw' ? 'Ada ya Kibali:' : 'Permit Fee:'}
+                    </span>
+                    <span className="text-sm font-black text-pink-900">
+                      TZS {tier.fee.toLocaleString()}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
 
             <div>

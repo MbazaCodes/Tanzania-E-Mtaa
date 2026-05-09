@@ -133,7 +133,7 @@ export const KibariMazishiForm: React.FC<FormProps> = ({
 
   const confirmSubmit = () => {
     if (formData) {
-      onSubmit(formData);
+      onSubmit({ ...formData, service_fee: 1000 });
     }
   };
 
