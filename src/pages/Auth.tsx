@@ -54,6 +54,7 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
   const [otpPreview, setOtpPreview] = useState<string | null>(null);
   const [otpCopied, setOtpCopied] = useState(false);
   const [otpCountdown, setOtpCountdown] = useState(9);
+  const [mockOtpCode, setMockOtpCode] = useState<string | null>(null);  // for demo bypass
   const otpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const dismissOtpPreview = useCallback(() => {
@@ -63,6 +64,18 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
     setOtpCountdown(9);
     if (otpTimerRef.current) clearInterval(otpTimerRef.current);
   }, []);
+
+  // Generate a random 6-digit mock OTP for demo/fallback use
+  const genMockOtp = useCallback(() => Math.floor(100000 + Math.random() * 900000).toString(), []);
+
+  // Detect if Supabase is properly configured
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+  const serviceKey = (import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ?? '') as string;
+  const isSupabaseConfigured = Boolean(
+    supabaseUrl &&
+    !supabaseUrl.includes('YOUR_SUPABASE_URL') &&
+    !supabaseUrl.includes('bqxevbmjqvogebmlbidx')
+  );
 
   useEffect(() => {
     if (!otpPopupVisible) return;
@@ -238,12 +251,9 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
           return;
         }
 
-        // ── DEV PREVIEW: use admin generateLink so we can surface the plain-text
-        // email_otp in the popup. Falls back to signInWithOtp if service key absent.
-        // Remove the generateLink branch once Twilio / real SMS is integrated.
-        const serviceKey = (import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ?? '') as string;
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
         if (serviceKey && supabaseUrl) {
+          // Admin API: get real OTP so we can show it in the popup.
+          // NOTE: email_otp is at the ROOT of the response, not in `properties`.
           const res = await fetch(`${supabaseUrl}/auth/v1/admin/generate_link`, {
             method: 'POST',
             headers: {
@@ -253,26 +263,52 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
             },
             body: JSON.stringify({ type: 'magiclink', email: normalizedOtpEmail }),
           });
-          const json = await res.json() as { properties?: { email_otp?: string }; error?: string };
-          if (!res.ok) throw new Error(json.error ?? 'Failed to generate OTP');
-          const code = json.properties?.email_otp;
-          if (code) setOtpPreview(code);
+          const json = await res.json() as Record<string, any>;
+          if (!res.ok) throw new Error(json.message || json.error || 'Failed to generate OTP');
+          // Supabase returns email_otp at root level (not inside properties)
+          const code: string | undefined = json.email_otp ?? json.properties?.email_otp;
+          if (code) {
+            setOtpPreview(code);
+            setMockOtpCode(null);
+          } else {
+            // Admin API connected but no code returned — fallback to mock hint
+            const mock = genMockOtp();
+            setMockOtpCode(mock);
+            setOtpPreview(mock);
+          }
+        } else if (!isSupabaseConfigured) {
+          // Full demo mode — generate a mock OTP; no real auth needed
+          const mock = genMockOtp();
+          setMockOtpCode(mock);
+          setOtpPreview(mock);
         } else {
+          // Real Supabase, no service key — send real OTP to email
           const { error } = await supabase.auth.signInWithOtp({ email: normalizedOtpEmail });
           if (error) throw error;
+          // No preview code available; popup will show "check email" guidance
+          setMockOtpCode(null);
+          setOtpPreview(null);
         }
       } else {
         if (!otpPhone || !isValidPhoneNumber(otpPhone)) {
           showToast(lang === 'sw' ? 'Weka namba sahihi ya simu' : 'Enter a valid phone number', 'error');
           return;
         }
-        const { error } = await supabase.auth.signInWithOtp({ phone: otpPhone });
-        if (error) throw error;
-        // Phone OTP code will come via SMS — show popup in "check phone" mode
+        if (!isSupabaseConfigured) {
+          // Demo mode for phone too
+          const mock = genMockOtp();
+          setMockOtpCode(mock);
+          setOtpPreview(mock);
+        } else {
+          const { error } = await supabase.auth.signInWithOtp({ phone: otpPhone });
+          if (error) throw error;
+          setMockOtpCode(null);
+          setOtpPreview(null);
+        }
       }
 
       setOtpSent(true);
-      setOtpPopupVisible(true);  // always open the popup
+      setOtpPopupVisible(true);
       showToast(
         lang === 'sw'
           ? `Nambari ya OTP imetumwa kwenye ${otpChannel === 'email' ? 'barua pepe' : 'simu'} yako`
@@ -294,6 +330,15 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
       return;
     }
     setOtpLoading(true);
+
+    // Demo mode bypass: accept the mock code we generated
+    if (!isSupabaseConfigured && mockOtpCode && otpCode.trim() === mockOtpCode) {
+      showToast(lang === 'sw' ? 'Karibu! (Mfano wa Demo)' : 'Welcome! (Demo Mode)', 'success');
+      setTimeout(onClose, 300);
+      setOtpLoading(false);
+      return;
+    }
+
     try {
       let result;
       if (otpChannel === 'email') {
@@ -452,7 +497,9 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
                   </span>
                   <div>
                     <p className="text-sm font-bold text-stone-900">
-                      {lang === 'sw' ? 'Nambari ya OTP Imetumwa' : 'OTP Code Sent'}
+                      {mockOtpCode
+                        ? (lang === 'sw' ? 'Msimbo wa Demo (Majaribio)' : 'Demo OTP Code (Test)')
+                        : (lang === 'sw' ? 'Nambari ya OTP Imetumwa' : 'OTP Code Sent')}
                     </p>
                     <p className="text-[11px] text-stone-400">
                       {lang === 'sw'
@@ -470,17 +517,23 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
                 </button>
               </div>
 
-              {/* OTP code — shown if we managed to fetch it via admin API */}
+              {/* OTP code display */}
               {otpPreview ? (
-                <div className="rounded-xl bg-stone-950 px-4 py-3 flex items-center justify-between gap-3">
-                  <span className="text-3xl font-black tracking-[0.3em] text-white font-mono select-all">
-                    {otpPreview}
-                  </span>
+                <div className={`rounded-xl px-4 py-3 flex items-center justify-between gap-3 ${mockOtpCode ? 'bg-amber-950' : 'bg-stone-950'}`}>
+                  <div>
+                    {mockOtpCode && (
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400 mb-1">
+                        {lang === 'sw' ? '⚠ Msimbo wa Majaribio' : '⚠ Mock Code'}
+                      </p>
+                    )}
+                    <span className="text-3xl font-black tracking-[0.3em] text-white font-mono select-all">
+                      {otpPreview}
+                    </span>
+                  </div>
                   <button
                     onClick={async () => {
-                      await navigator.clipboard.writeText(otpPreview);
+                      try { await navigator.clipboard.writeText(otpPreview); } catch { /* ignore */ }
                       setOtpCopied(true);
-                      // Auto-fill the code in the main form input
                       setOtpCode(otpPreview);
                       setTimeout(() => setOtpCopied(false), 2000);
                     }}
@@ -494,7 +547,7 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
                   </button>
                 </div>
               ) : (
-                /* Fallback: no code available — guide user to check email/phone */
+                /* No preview — guide user to check email/phone */
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-3">
                   <Mail className="h-5 w-5 text-emerald-600 shrink-0" />
                   <p className="text-sm text-emerald-900 font-medium">
@@ -535,9 +588,13 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
               </div>
 
               <p className="text-[10px] text-stone-400 text-center leading-relaxed">
-                {lang === 'sw'
-                  ? 'Popup hii ni kwa maendeleo tu. Itaondolewa baada ya kuunganishwa na SMS/Twilio.'
-                  : 'Dev preview only — will be removed after SMS/Twilio integration.'}
+                {mockOtpCode
+                  ? (lang === 'sw'
+                    ? 'Msimbo wa majaribio — utafanya kazi tu katika hali ya demo. Baada ya kuunganishwa SMS/Barua pepe, utaondolewa.'
+                    : 'Mock code — works only in demo mode. Will be removed after SMS/Email integration.')
+                  : (lang === 'sw'
+                    ? 'Msimbo wa kweli umetumwa — unaweza kuutumia kuthibitisha.'
+                    : 'Real OTP sent — use it to verify your login.')}
               </p>
             </div>
           </motion.div>
