@@ -468,23 +468,22 @@ export const PaymentGateway: React.FC<PaymentGatewayProps> = ({
                 {/* Option 1 — Lipa Sasa */}
                 <button
                   onClick={() => { setMethod('mobile'); setStep('push_setup'); setErrorMessage(null); }}
-                  className="w-full flex items-center gap-4 rounded-2xl p-5 text-left shadow-lg transition hover:opacity-90 active:scale-[0.98]"
-                  style={{ backgroundColor: '#1a6b38' }}
+                  className="w-full flex items-center gap-4 rounded-2xl p-5 text-left shadow-lg transition hover:opacity-90 active:scale-[0.98] bg-primary"
                 >
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
-                    <Smartphone className="h-7 w-7" style={{ color: '#ffffff' }} />
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white/20">
+                    <Smartphone className="h-7 w-7 text-white" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xl font-black tracking-tight" style={{ color: '#ffffff' }}>
+                    <p className="text-xl font-black tracking-tight text-white">
                       {lang === 'sw' ? 'Lipa Sasa' : 'Pay Now'}
                     </p>
-                    <p className="mt-0.5 text-sm font-medium" style={{ color: 'rgba(255,255,255,0.8)' }}>
+                    <p className="mt-0.5 text-sm font-medium text-white/80">
                       {lang === 'sw'
                         ? 'Tuma ombi moja kwa moja kwenye simu yako (M-Pesa, Tigo, Airtel)'
                         : 'Push request directly to your phone (M-Pesa, Tigo, Airtel)'}
                     </p>
                   </div>
-                  <ArrowRight className="h-6 w-6 shrink-0" style={{ color: 'rgba(255,255,255,0.8)' }} />
+                  <ArrowRight className="h-6 w-6 shrink-0 text-white/80" />
                 </button>
 
                 {/* Option 2 — Lipa kwa Reference */}
@@ -729,8 +728,7 @@ export const PaymentGateway: React.FC<PaymentGatewayProps> = ({
                 </div>
                 <button
                   onClick={onCancel}
-                  className="h-16 w-full rounded-2xl text-lg font-bold text-white transition"
-                  style={{ backgroundColor: '#1a6b38' }}
+                  className="h-16 w-full rounded-2xl text-lg font-bold text-white transition bg-primary"
                 >
                   {lang === 'sw' ? 'Funga' : 'Close'}
                 </button>
@@ -746,8 +744,7 @@ export const PaymentGateway: React.FC<PaymentGatewayProps> = ({
             <button
               disabled={!isPushValid || !paymentSession || submitting}
               onClick={requestPushPayment}
-              className="h-16 w-full rounded-2xl text-base font-bold text-white shadow-md transition disabled:cursor-not-allowed disabled:opacity-40"
-              style={{ backgroundColor: '#1a6b38' }}
+              className="h-16 w-full rounded-2xl text-base font-bold text-white shadow-md transition disabled:cursor-not-allowed disabled:opacity-40 bg-primary"
             >
               {submitting ? (
                 <span className="inline-flex items-center justify-center gap-2">
@@ -770,8 +767,7 @@ export const PaymentGateway: React.FC<PaymentGatewayProps> = ({
               <button
                 onClick={confirmPushPayment}
                 disabled={submitting}
-                className="h-16 rounded-2xl text-base font-bold text-white transition disabled:opacity-40"
-                style={{ backgroundColor: '#1a6b38' }}
+                className="h-16 rounded-2xl text-base font-bold text-white transition disabled:opacity-40 bg-primary"
               >
                 {submitting ? (
                   <span className="inline-flex items-center gap-2 justify-center">
@@ -809,8 +805,7 @@ export const PaymentGateway: React.FC<PaymentGatewayProps> = ({
               <button
                 disabled={!manualTransactionId.trim() || submitting}
                 onClick={submitReferencePayment}
-                className="h-16 rounded-2xl text-base font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ backgroundColor: '#1a6b38' }}
+                className="h-16 rounded-2xl text-base font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40 bg-primary"
               >
                 {submitting ? (
                   <span className="inline-flex items-center gap-2 justify-center">

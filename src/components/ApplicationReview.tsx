@@ -614,7 +614,7 @@ export const ApplicationReview: React.FC<ApplicationReviewProps> = ({ lang, user
                       Object.entries(selectedApp.form_data || {}).map(([key, value]) => (
                         <div key={key} className="rounded-xl bg-stone-50 px-4 py-3">
                           <p className="text-xs font-bold uppercase text-stone-400">{formatFieldLabel(key)}</p>
-                          <p className="mt-1 text-sm font-medium text-stone-800 whitespace-pre-wrap break-words">
+                          <p className="mt-1 text-sm font-medium text-stone-800 whitespace-pre-wrap wrap-break-word">
                             {renderFieldValue(value)}
                           </p>
                         </div>

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  X, Mail, Lock, Eye, EyeOff, Loader2, ArrowRight, ArrowLeft, 
-  CheckCircle2, AlertCircle 
+import {
+  X, Mail, Lock, Eye, EyeOff, Loader2, ArrowRight, ArrowLeft,
+  CheckCircle2, AlertCircle, Smartphone, KeyRound,
 } from 'lucide-react';
 import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
@@ -39,6 +39,15 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotPasswordStep, setForgotPasswordStep] = useState(1);
+
+  // Login method: 'password' | 'otp'
+  const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
+  // OTP channel: 'email' | 'phone'
+  const [otpChannel, setOtpChannel] = useState<'email' | 'phone'>('email');
+  const [otpPhone, setOtpPhone] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
 
   // Login Form
   const [email, setEmail] = useState('');
@@ -191,6 +200,76 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
     }
   };
 
+  // Send OTP to email or phone
+  const handleSendOtp = async () => {
+    setOtpLoading(true);
+    try {
+      if (otpChannel === 'email') {
+        const normalizedOtpEmail = normalizeEmail(email);
+        if (!normalizedOtpEmail) {
+          showToast(lang === 'sw' ? 'Weka barua pepe' : 'Enter your email', 'error');
+          return;
+        }
+        const { error } = await supabase.auth.signInWithOtp({ email: normalizedOtpEmail });
+        if (error) throw error;
+      } else {
+        if (!otpPhone || !isValidPhoneNumber(otpPhone)) {
+          showToast(lang === 'sw' ? 'Weka namba sahihi ya simu' : 'Enter a valid phone number', 'error');
+          return;
+        }
+        const { error } = await supabase.auth.signInWithOtp({ phone: otpPhone });
+        if (error) throw error;
+      }
+      setOtpSent(true);
+      showToast(
+        lang === 'sw'
+          ? `Nambari ya OTP imetumwa kwenye ${otpChannel === 'email' ? 'barua pepe' : 'simu'} yako`
+          : `OTP sent to your ${otpChannel === 'email' ? 'email' : 'phone'}`,
+        'success'
+      );
+    } catch (err: any) {
+      showToast(err.message || 'Failed to send OTP', 'error');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Verify OTP code
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otpCode.trim()) {
+      showToast(lang === 'sw' ? 'Weka nambari ya OTP' : 'Enter the OTP code', 'error');
+      return;
+    }
+    setOtpLoading(true);
+    try {
+      let result;
+      if (otpChannel === 'email') {
+        result = await supabase.auth.verifyOtp({
+          email: normalizeEmail(email),
+          token: otpCode.trim(),
+          type: 'email',
+        });
+      } else {
+        result = await supabase.auth.verifyOtp({
+          phone: otpPhone,
+          token: otpCode.trim(),
+          type: 'sms',
+        });
+      }
+      if (result.error) throw result.error;
+      if (result.data.user) {
+        await fetchUserProfile(result.data.user.id, result.data.user);
+        showToast(lang === 'sw' ? 'Karibu tena!' : 'Welcome back!', 'success');
+        setTimeout(onClose, 300);
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Invalid OTP', 'error');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
   // Handle Signup
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -298,17 +377,17 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
         {/* Header */}
         <div className="px-8 py-6 border-b flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <img 
-              src={TANZANIA_LOGO_URL} 
-              alt="Coat of Arms" 
-              className="w-9 h-9 object-contain" 
+            <img
+              src={TANZANIA_LOGO_URL}
+              alt="Nembo ya Tanzania"
+              className="w-14 h-14 object-contain drop-shadow-md"
               referrerPolicy="no-referrer"
             />
             <div>
               <h2 className="font-bold text-2xl tracking-tight">
                 {mode === 'login' ? (lang === 'sw' ? 'Ingia' : 'Login') : (lang === 'sw' ? 'Jiunge' : 'Sign Up')}
               </h2>
-              <p className="text-xs text-stone-500">E-MTAA â€¢ Serikali ya Mtaa</p>
+              <p className="text-xs text-stone-500">E-MTAA &bull; Serikali ya Mtaa</p>
             </div>
           </div>
 
@@ -327,81 +406,224 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
             {!showForgotPassword ? (
               /* ====================== LOGIN FORM ====================== */
               mode === 'login' ? (
-                <motion.form 
+                <motion.div
                   key="login"
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  onSubmit={handleLogin}
                   className="space-y-6"
                 >
-                  <div>
-                    <label className="text-sm font-medium text-stone-600 mb-1.5 block">Barua Pepe / Email</label>
-                    <div className="relative">
-                      <Mail className="absolute left-4 top-3.5 text-stone-400" size={20} />
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        className="w-full pl-11 pr-4 py-3 border border-stone-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        placeholder="juma@example.com"
-                      />
-                    </div>
+                  {/* Login method tabs */}
+                  <div className="flex rounded-2xl border border-stone-200 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => { setLoginMethod('password'); setOtpSent(false); setOtpCode(''); }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold transition-colors ${loginMethod === 'password' ? 'bg-emerald-600 text-white' : 'bg-white text-stone-600 hover:bg-stone-50'}`}
+                    >
+                      <Lock size={15} /> {lang === 'sw' ? 'Nywila' : 'Password'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setLoginMethod('otp'); setOtpSent(false); setOtpCode(''); }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold transition-colors ${loginMethod === 'otp' ? 'bg-emerald-600 text-white' : 'bg-white text-stone-600 hover:bg-stone-50'}`}
+                    >
+                      <KeyRound size={15} /> {lang === 'sw' ? 'Nambari ya OTP' : 'OTP Code'}
+                    </button>
                   </div>
 
-                  <div>
-                    <div className="flex justify-between mb-1.5">
-                      <label className="text-sm font-medium text-stone-600">Nywila / Password</label>
-                      <button
-                        type="button"
-                        onClick={() => setShowForgotPassword(true)}
-                        className="text-xs text-emerald-600 hover:underline"
-                      >
-                        {lang === 'sw' ? 'Umesahau?' : 'Forgot?'}
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <Lock className="absolute left-4 top-3.5 text-stone-400" size={20} />
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        className="w-full pl-11 pr-12 py-3 border border-stone-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-3.5 text-stone-400"
-                        title={showPassword ? (lang === 'sw' ? 'Ficha nywila' : 'Hide password') : (lang === 'sw' ? 'Onyesha nywila' : 'Show password')}
-                        aria-label={showPassword ? (lang === 'sw' ? 'Ficha nywila' : 'Hide password') : (lang === 'sw' ? 'Onyesha nywila' : 'Show password')}
-                      >
-                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                      </button>
-                    </div>
-                  </div>
+                  {/* ── Password login ── */}
+                  {loginMethod === 'password' && (
+                    <form onSubmit={handleLogin} className="space-y-5">
+                      <div>
+                        <label className="text-sm font-medium text-stone-600 mb-1.5 block">
+                          {lang === 'sw' ? 'Barua Pepe' : 'Email'}
+                        </label>
+                        <div className="relative">
+                          <Mail className="absolute left-4 top-3.5 text-stone-400" size={20} />
+                          <input
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                            className="w-full pl-11 pr-4 py-3 border border-stone-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            placeholder="juma@example.com"
+                          />
+                        </div>
+                      </div>
 
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all"
-                  >
-                    {loading ? <Loader2 className="animate-spin" size={22} /> : (lang === 'sw' ? 'Ingia' : 'Login')}
-                  </button>
+                      <div>
+                        <div className="flex justify-between mb-1.5">
+                          <label className="text-sm font-medium text-stone-600">
+                            {lang === 'sw' ? 'Nywila' : 'Password'}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowForgotPassword(true)}
+                            className="text-xs text-emerald-600 hover:underline"
+                          >
+                            {lang === 'sw' ? 'Umesahau?' : 'Forgot?'}
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <Lock className="absolute left-4 top-3.5 text-stone-400" size={20} />
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                            className="w-full pl-11 pr-12 py-3 border border-stone-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            placeholder="&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-4 top-3.5 text-stone-400"
+                            aria-label={showPassword ? (lang === 'sw' ? 'Ficha nywila' : 'Hide password') : (lang === 'sw' ? 'Onyesha nywila' : 'Show password')}
+                          >
+                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all"
+                      >
+                        {loading ? <Loader2 className="animate-spin" size={22} /> : (lang === 'sw' ? 'Ingia' : 'Login')}
+                      </button>
+                    </form>
+                  )}
+
+                  {/* ── OTP login ── */}
+                  {loginMethod === 'otp' && (
+                    <div className="space-y-5">
+                      {/* Channel selector */}
+                      <div>
+                        <p className="text-sm font-medium text-stone-600 mb-2">
+                          {lang === 'sw' ? 'Pokea OTP kupitia:' : 'Receive OTP via:'}
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => { setOtpChannel('email'); setOtpSent(false); setOtpCode(''); }}
+                            className={`flex items-center justify-center gap-2 rounded-2xl border-2 py-3 text-sm font-semibold transition-colors ${otpChannel === 'email' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-stone-200 text-stone-600'}`}
+                          >
+                            <Mail size={16} /> {lang === 'sw' ? 'Barua Pepe' : 'Email'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setOtpChannel('phone'); setOtpSent(false); setOtpCode(''); }}
+                            className={`flex items-center justify-center gap-2 rounded-2xl border-2 py-3 text-sm font-semibold transition-colors ${otpChannel === 'phone' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-stone-200 text-stone-600'}`}
+                          >
+                            <Smartphone size={16} /> {lang === 'sw' ? 'Simu' : 'Phone'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Email / Phone input */}
+                      {otpChannel === 'email' ? (
+                        <div>
+                          <label className="text-sm font-medium text-stone-600 mb-1.5 block">
+                            {lang === 'sw' ? 'Barua Pepe' : 'Email Address'}
+                          </label>
+                          <div className="relative">
+                            <Mail className="absolute left-4 top-3.5 text-stone-400" size={20} />
+                            <input
+                              type="email"
+                              value={email}
+                              onChange={(e) => { setEmail(e.target.value); setOtpSent(false); }}
+                              className="w-full pl-11 pr-4 py-3 border border-stone-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              placeholder="juma@example.com"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="text-sm font-medium text-stone-600 mb-1.5 block">
+                            {lang === 'sw' ? 'Namba ya Simu' : 'Phone Number'}
+                          </label>
+                          <PhoneInput
+                            international
+                            defaultCountry="TZ"
+                            value={otpPhone}
+                            onChange={(val) => { setOtpPhone(val ?? ''); setOtpSent(false); }}
+                            className="mt-1"
+                          />
+                        </div>
+                      )}
+
+                      {/* Send OTP button */}
+                      {!otpSent ? (
+                        <button
+                          type="button"
+                          onClick={handleSendOtp}
+                          disabled={otpLoading}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all"
+                        >
+                          {otpLoading ? (
+                            <Loader2 className="animate-spin" size={20} />
+                          ) : (
+                            <>
+                              <KeyRound size={18} />
+                              {lang === 'sw' ? 'Tuma Nambari ya OTP' : 'Send OTP Code'}
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <form onSubmit={handleVerifyOtp} className="space-y-4">
+                          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 flex items-center gap-2">
+                            <CheckCircle2 size={16} className="shrink-0" />
+                            {lang === 'sw'
+                              ? `OTP imetumwa. Angalia ${otpChannel === 'email' ? 'barua pepe' : 'simu'} yako.`
+                              : `OTP sent. Check your ${otpChannel === 'email' ? 'email' : 'phone'}.`}
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-stone-600 mb-1.5 block">
+                              {lang === 'sw' ? 'Weka Nambari ya OTP' : 'Enter OTP Code'}
+                            </label>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={6}
+                              value={otpCode}
+                              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                              className="w-full px-4 py-3 border border-stone-200 rounded-2xl text-center text-2xl font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              placeholder="&#x2022; &#x2022; &#x2022; &#x2022; &#x2022; &#x2022;"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              type="button"
+                              onClick={() => { setOtpSent(false); setOtpCode(''); }}
+                              className="py-3 border border-stone-200 text-stone-600 rounded-2xl font-medium text-sm"
+                            >
+                              {lang === 'sw' ? 'Tuma Tena' : 'Resend'}
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={otpLoading || otpCode.length < 4}
+                              className="py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold rounded-2xl flex items-center justify-center gap-2 text-sm transition-all"
+                            >
+                              {otpLoading ? <Loader2 className="animate-spin" size={18} /> : (lang === 'sw' ? 'Thibitisha' : 'Verify')}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  )}
 
                   <p className="text-center text-sm text-stone-500">
-                    {lang === 'sw' ? 'Huna akaunti?' : "Don't have an account?"} {' '}
-                    <button 
-                      type="button" 
+                    {lang === 'sw' ? 'Huna akaunti?' : "Don't have an account?"}{' '}
+                    <button
+                      type="button"
                       onClick={() => setMode('signup')}
                       className="text-emerald-600 font-semibold hover:underline"
                     >
                       {lang === 'sw' ? 'Jiunge sasa' : 'Sign up'}
                     </button>
                   </p>
-                </motion.form>
+                </motion.div>
               ) : (
                 /* ====================== SIGNUP FORM ====================== */
                 <motion.div
@@ -598,8 +820,7 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
                             value={regForm.password}
                             onChange={(e) => updateRegForm('password', e.target.value)}
                             className="mt-1 w-full px-4 py-3 border border-stone-200 rounded-2xl"
-                            placeholder={lang === 'sw' ? 'Weka nywila' : 'Enter password'}
-                            title={lang === 'sw' ? 'Nywila' : 'Password'}
+                            placeholder="&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;"
                             required
                           />
                         </div>
@@ -610,8 +831,7 @@ export function Auth({ mode, onClose, setMode, isDiaspora = false }: AuthProps) 
                             value={regForm.confirmPassword}
                             onChange={(e) => updateRegForm('confirmPassword', e.target.value)}
                             className="mt-1 w-full px-4 py-3 border border-stone-200 rounded-2xl"
-                            placeholder={lang === 'sw' ? 'Rudia nywila' : 'Confirm password'}
-                            title={lang === 'sw' ? 'Thibitisha nywila' : 'Confirm password'}
+                            placeholder="&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;"
                             required
                           />
                         </div>

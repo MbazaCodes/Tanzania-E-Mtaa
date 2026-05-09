@@ -142,8 +142,7 @@ export function BottomTabBar({ currentView, setView }: BottomTabBarProps) {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white border-t border-stone-200 flex items-stretch"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white border-t border-stone-200 flex items-stretch pb-[env(safe-area-inset-bottom)]"
       aria-label={lang === 'sw' ? 'Urambazaji wa chini' : 'Bottom navigation'}
     >
       {visibleTabs.map((tab) => {
@@ -158,7 +157,7 @@ export function BottomTabBar({ currentView, setView }: BottomTabBarProps) {
             aria-label={tab.label}
             aria-current={isActive ? 'page' : undefined}
             className={cn(
-              'flex-1 flex flex-col items-center justify-center gap-1 py-2 px-1 min-h-[56px] transition-all active:scale-95',
+              'flex-1 flex flex-col items-center justify-center gap-1 py-2 px-1 min-h-14 transition-all active:scale-95',
               isActive
                 ? 'text-emerald-600'
                 : 'text-stone-400 hover:text-stone-600'
