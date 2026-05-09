@@ -435,19 +435,19 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ lang }) => {
       {/* Add Staff Modal */}
       <AnimatePresence>
         {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl"
+              initial={{ opacity: 0, y: 60 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 60 }}
+              className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col"
             >
-              <div className="p-6 border-b flex items-center justify-between bg-stone-50">
+              <div className="shrink-0 p-6 border-b flex items-center justify-between bg-stone-50">
                 <h3 className="text-xl font-bold">{lang === 'sw' ? 'Sajili Mtumishi Mpya' : 'Add New Staff'}</h3>
                 <button onClick={() => setShowAddModal(false)} title={lang === 'sw' ? 'Funga dirisha la usajili' : 'Close add staff dialog'} aria-label={lang === 'sw' ? 'Funga dirisha la usajili' : 'Close add staff dialog'}><X size={24} className="text-stone-400" /></button>
               </div>
 
-              <form onSubmit={handleCreateStaff} className="p-6 space-y-6">
+              <form onSubmit={handleCreateStaff} className="p-6 space-y-6 overflow-y-auto flex-1">
                 {/* Email */}
                 <div>
                   <label className="text-sm font-medium text-stone-600 block mb-1">Barua Pepe</label>
@@ -553,15 +553,15 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ lang }) => {
       {/* Staff Details Modal */}
       <AnimatePresence>
         {showDetailsModal && selectedStaff && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl"
+              initial={{ opacity: 0, y: 60 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 60 }}
+              className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col"
             >
               {/* Header with avatar */}
-              <div className="p-6 bg-linear-to-r from-emerald-50 to-blue-50 border-b">
+              <div className="shrink-0 p-6 bg-linear-to-r from-emerald-50 to-blue-50 border-b">
                 <div className="flex items-center gap-4">
                   <div className="h-16 w-16 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-2xl font-bold">
                     {selectedStaff.first_name?.[0]}{selectedStaff.last_name?.[0]}
@@ -574,7 +574,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ lang }) => {
               </div>
 
               {/* Content */}
-              <div className="p-6 space-y-8">
+              <div className="p-6 space-y-8 overflow-y-auto flex-1">
                 {/* Role Section */}
                 <div>
                   <div className="flex justify-between mb-3">
@@ -634,7 +634,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({ lang }) => {
                 </div>
               </div>
 
-              <div className="p-6 border-t flex gap-3">
+              <div className="shrink-0 p-6 border-t flex gap-3">
                 <button onClick={() => setShowDetailsModal(false)} className="flex-1 h-12 bg-stone-100 rounded-2xl font-semibold">Funga</button>
                 <button onClick={() => handleDeleteStaff(selectedStaff.id)} className="flex-1 h-12 bg-red-50 text-red-600 rounded-2xl font-semibold">Futa Mtumishi</button>
               </div>

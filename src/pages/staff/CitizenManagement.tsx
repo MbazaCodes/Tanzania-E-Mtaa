@@ -498,14 +498,14 @@ export function CitizenManagement() {
       {/* Add Citizen Modal */}
       <AnimatePresence>
         {showAddModal && (
-          <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-100 flex items-end justify-center sm:items-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden"
+              initial={{ opacity: 0, y: 60 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 60 }}
+              className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col"
             >
-              <div className="px-8 py-6 border-b flex items-center justify-between">
+              <div className="shrink-0 px-8 py-6 border-b flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <UserPlus className="text-emerald-600" size={28} />
                   <h2 className="text-2xl font-bold">Sajili Mwananchi Mpya</h2>
@@ -520,7 +520,7 @@ export function CitizenManagement() {
                 </button>
               </div>
 
-              <form onSubmit={handleAddCitizen} className="p-8 space-y-6">
+              <form onSubmit={handleAddCitizen} className="p-8 space-y-6 overflow-y-auto flex-1">
                 {/* Form fields - simplified and clean */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>

@@ -577,7 +577,7 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.96, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 12 }}
-              className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl"
+              className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
             >
               <div className="mb-6 flex items-start gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
